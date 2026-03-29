@@ -1,0 +1,6 @@
+# controller_joint_names:
+#   - motor_joint_left
+#   - motor_joint_right
+controller_joint_names:
+  - motor_joint_left
+  - motor_joint_right

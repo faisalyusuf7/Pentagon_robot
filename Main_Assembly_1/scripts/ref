@@ -1,0 +1,11 @@
+ros2 topic pub --once /ik_target geometry_msgs/msg/Point "{x: 0.0, y: 0.25, z: 0.0}"
+ros2 run Main_Assembly_1 five_bar_ik_node.py --ros-args -p left_sign:=-1.0 -p right_sign:=1.0
+
+yamin@yamin:~/Workspaces/ros2_ws$ ros2 topic pub --once /ik_target geometry_msgs/msg/Point "{x: 0.0, y: 0.25, z: 0.0}"
+Waiting for at least 1 matching subscription(s)...
+Waiting for at least 1 matching subscription(s)...
+Waiting for at least 1 matching subscription(s)...
+publisher: beginning loop
+publishing #1: geometry_msgs.msg.Point(x=0.0, y=0.25, z=0.0)
+
+yamin@yamin:~/Workspaces/ros2_ws$ 

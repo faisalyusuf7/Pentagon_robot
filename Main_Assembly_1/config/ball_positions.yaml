@@ -1,0 +1,70 @@
+# ==============================================================================
+# Ball Tray Hole Positions — for pick-and-place simulation
+# ==============================================================================
+# All coordinates are in the tray_base_link (world) frame, in METRES.
+# Z values are at the top surface of each tray (where balls sit).
+#
+# Tray_left  : 9 holes  (3×3 grid), hole radius ≈  7.1 mm
+# Front_tray : 9 holes  (3×3 grid), hole radius ≈ 19.4 mm
+#
+# The robot picks balls from Front_tray and places them into Tray_left.
+# ==============================================================================
+
+# ---------------------------------------------------------------------------
+#  SOURCE — Front_tray  (3 × 3 grid, 9 balls)
+#
+#  Local frame origin at URDF joint:
+#    xyz = (0.77425, -1.39501, -0.00474)   rpy = (0, 0, 0)
+#  Hole top surface (local Z) = 0.025 m
+#  Hole radius = 19.4 mm
+#
+#  Grid layout (looking from above, +X = right, +Y = up):
+#
+#        col0 (Y=-45mm)    col1 (Y=0mm)    col2 (Y=+45mm)
+#  row0  F0                F1              F2
+#  row1  F3                F4              F5
+#  row2  F6                F7              F8
+# ---------------------------------------------------------------------------
+front_tray:
+  hole_radius: 0.0194       # metres
+  top_surface_z_local: 0.025 # metres (in tray local frame)
+  holes:
+    F0: {x:  0.724254, y: -1.440010, z:  0.020256}
+    F1: {x:  0.724254, y: -1.395010, z:  0.020256}
+    F2: {x:  0.724254, y: -1.350010, z:  0.020256}
+    F3: {x:  0.769254, y: -1.440010, z:  0.020256}
+    F4: {x:  0.769254, y: -1.395010, z:  0.020256}
+    F5: {x:  0.769254, y: -1.350010, z:  0.020256}
+    F6: {x:  0.814254, y: -1.440010, z:  0.020256}
+    F7: {x:  0.814254, y: -1.395010, z:  0.020256}
+    F8: {x:  0.814254, y: -1.350010, z:  0.020256}
+
+# ---------------------------------------------------------------------------
+#  DESTINATION — Tray_left  (3 × 3 grid, 9 balls)
+#
+#  Local frame origin at URDF joint:
+#    xyz = (0.54925, -1.65001, -0.00474)
+#    rpy = (π, 0, -π/2)          ← flipped & rotated
+#  Hole top surface (local Z) = 0.015 m
+#  Hole radius = 7.1 mm
+#
+#  Grid layout (in world frame, looking from above):
+#
+#              col0 (X≈0.594)   col1 (X≈0.549)   col2 (X≈0.504)
+#  row0 (Y≈-1.600)   L0             L1               L2
+#  row1 (Y≈-1.645)   L3             L4               L5
+#  row2 (Y≈-1.690)   L6             L7               L8
+# ---------------------------------------------------------------------------
+tray_left:
+  hole_radius: 0.0071        # metres
+  top_surface_z_local: 0.015  # metres (in tray local frame)
+  holes:
+    L0: {x:  0.594254, y: -1.600010, z:  0.000256}
+    L1: {x:  0.549254, y: -1.600010, z:  0.000256}
+    L2: {x:  0.504254, y: -1.600010, z:  0.000256}
+    L3: {x:  0.594254, y: -1.645010, z:  0.000256}
+    L4: {x:  0.549254, y: -1.645010, z:  0.000256}
+    L5: {x:  0.504254, y: -1.645010, z:  0.000256}
+    L6: {x:  0.594254, y: -1.690010, z:  0.000256}
+    L7: {x:  0.549254, y: -1.690010, z:  0.000256}
+    L8: {x:  0.504254, y: -1.690010, z:  0.000256}

@@ -1,0 +1,25 @@
+<package format="3">
+  <name>Main_Assembly_1</name>
+  <version>1.0.0</version>
+  <description>
+    <p>URDF Description package for Main_Assembly_1</p>
+    <p>5-bar parallel linkage pick-and-place robot with suction end-effector</p>
+  </description>
+  <author>Yamin</author>
+  <maintainer email="yamin@email.com">Yamin</maintainer>
+  <license>BSD</license>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+
+  <depend>robot_state_publisher</depend>
+  <depend>joint_state_publisher_gui</depend>
+  <depend>xacro</depend>
+  <depend>rviz2</depend>
+  <depend>sensor_msgs</depend>
+  <depend>geometry_msgs</depend>
+  <depend>tf2_ros</depend>
+
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>

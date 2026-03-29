@@ -1,0 +1,16 @@
+build/
+install/
+log/
+
+Main_Assembly_1/build/
+Main_Assembly_1/install/
+Main_Assembly_1/log/
+
+*.pyc
+__pycache__/
+*.pyo
+
+.vscode/
+.idea/
+
+*.zip
