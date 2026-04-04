@@ -36,9 +36,9 @@ from std_msgs.msg import String, Bool
 
 class ArduinoBridge(Node):
 
-    # Joint names from URDF (must match five_bar_ik_node.py ALL_JOINTS)
-    MOTOR_LEFT_JOINT  = "motor_joint_left"
-    MOTOR_RIGHT_JOINT = "motor_joint_right"
+    # Joint names from V3 URDF (must match five_bar_ik_node.py ALL_JOINTS)
+    MOTOR_LEFT_JOINT  = "Joint_2"
+    MOTOR_RIGHT_JOINT = "Joint_1"
 
     def __init__(self):
         super().__init__("arduino_bridge")

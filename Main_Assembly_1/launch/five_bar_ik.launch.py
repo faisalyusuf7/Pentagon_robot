@@ -42,11 +42,11 @@ def generate_launch_description():
             description='Arduino serial port; empty enables bridge auto-detect',
         ),
 
-        # world → tray_base_link static TF (tray_base_link is root of URDF)
+        # world → base_link static TF (base_link is root of V3 URDF)
         Node(
             package="tf2_ros",
             executable="static_transform_publisher",
-            arguments=["0", "0", "0", "0", "0", "0", "world", "tray_base_link"],
+            arguments=["--frame-id", "world", "--child-frame-id", "base_link"],
             output="screen",
         ),
 

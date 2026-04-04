@@ -91,8 +91,8 @@ class _Motor:
 class MksServo42cBridge(Node):
     """Drop-in replacement for ArduinoBridge using MKS SERVO42C UART."""
 
-    MOTOR_LEFT_JOINT  = "motor_joint_left"
-    MOTOR_RIGHT_JOINT = "motor_joint_right"
+    MOTOR_LEFT_JOINT  = "Joint_2"
+    MOTOR_RIGHT_JOINT = "Joint_1"
 
     def __init__(self):
         super().__init__("arduino_bridge")   # keep same node name for compatibility

@@ -54,50 +54,43 @@ def _clamp(v, lo, hi):
 class FiveBarIKNode(Node):
     """Standalone 5-bar IK → joint_states publisher."""
 
-    # ---- URDF constants (from SolidWorks export) ----
+    # ---- URDF constants (from V3 SolidWorks export) ----
     # Motor joint frame orientations (rpy from URDF)
-    _R_ML = _rpy(-math.pi / 2, 0, 0.00292493868428481)
-    _R_MR = _rpy(-math.pi / 2, 0, 0.0108765596422485)
+    # Joint_2 = left motor, Joint_1 = right motor
+    _R_ML = _rpy(-1.5924, -0.0012905, 0.37069)
+    _R_MR = _rpy(-1.5853, -0.016051, -0.40717)
 
-    # tray_to_linkage_joint: tray_base_link → base_link offset (URDF fixed joint)
-    _BASE_LINK_OFFSET = np.array([-0.006403, -0.103113, -0.00474])
+    # Per-motor yaw offsets (Z-rotation component of motor rpy)
+    _YAW_ML = 0.37069
+    _YAW_MR = -0.40717
 
-    # Motor joint positions in base_link frame (xyz from URDF)
-    # Converted to tray_base_link (world) frame by adding _BASE_LINK_OFFSET
-    _POS_ML = np.array([0.695406926143987, -1.58664693818658, 0.0500000000000009]) + _BASE_LINK_OFFSET
-    _POS_MR = np.array([0.885406926135972, -1.58664693819113, 0.0699999999999998]) + _BASE_LINK_OFFSET
+    # No tray offset in V3 — base_link is the root
+    _BASE_LINK_OFFSET = np.array([0.0, 0.0, 0.0])
 
-    # Passive joint origin offsets in motor-link frame (xyz from URDF)
-    _PASS_L_XYZ = np.array([0.000019, -0.014000, 0.200001])
-    _PASS_R_XYZ = np.array([0.0, -0.00309999999999989, 0.199999999999012])
+    # Motor joint positions in base_link frame (xyz from V3 URDF)
+    _POS_ML = np.array([0.033931, -0.17377, 0.1045])    # Joint_2
+    _POS_MR = np.array([0.22303, -0.17462, 0.12681])    # Joint_1
 
-    # Passive (coupler) joint initial orientations (rpy from URDF)
-    _R_PL_INIT = _rpy(0, 1.07736121547448, math.pi)
-    _R_PR_INIT = _rpy(0, 1.09202325866201, 0)
+    # Passive joint origin offsets in motor-link frame (xyz from V3 URDF)
+    _PASS_L_XYZ = np.array([0.0, -0.0036364, 0.2])      # Joint_4
+    _PASS_R_XYZ = np.array([0.0, 0.0, 0.2])              # Joint_3
 
-    # Suction joint offset in right_link frame (fixed joint from URDF)
-    _SUCTION_XYZ = np.array([-0.20999988943129,
-                              -0.0469999999999999,
-                              -0.000148706565137574])
+    # Passive (coupler) joint initial orientations (rpy from V3 URDF)
+    _R_PL_INIT = _rpy(0, 0.16756, -3.1416)              # Joint_4
+    _R_PR_INIT = _rpy(0, 0.15538, 0)                     # Joint_3
 
-    # suction_link -> channel_suction_link (fixed joint from URDF: suction_channel)
-    _CHANNEL_XYZ = np.array([-0.000149999999999983, -0.0098999999999998, 0.05])
-    _R_CHANNEL = _rpy(-math.pi / 2.0, 0.0, math.pi)
-
-    # Nozzle tip (very bottom center) in channel_suction_link frame.
-    # Derived from `meshes/channel_suction_link.STL` bounds: long axis is +Y,
-    # bottom-most end is at y = -0.00102810119, with x,z ~ 0.
-    _TIP_CH = np.array([0.0, -0.00102810119, 0.0])
+    # Endeffector joint offset in Link_3 (right coupler) frame (Joint_5)
+    _SUCTION_XYZ = np.array([-0.2, -0.0063467, -0.00014871])
 
     # IK origin = midpoint of motor shafts (pre-computed)
     _IK_ORIGIN = (_POS_ML + _POS_MR) / 2.0
 
     ALL_JOINTS = [
-        "motor_joint_left",
-        "motor_joint_right",
-        "joint_link_left",
-        "right_joint_link",
-        "gear_servo_suction_joint",
+        "Joint_2",           # left motor  (base_link → Link_2)
+        "Joint_1",           # right motor (base_link → Link_1)
+        "Joint_4",           # passive left  (Link_2 → Link_4)
+        "Joint_3",           # passive right (Link_1 → Link_3)
+        "Joint_5",           # endeffector   (Link_3 → Endeffector)
     ]
 
     # ---- Ball / tray geometry ----
@@ -144,9 +137,13 @@ class FiveBarIKNode(Node):
         self.d  = float(self.get_parameter("d").value)
         rate    = float(self.get_parameter("publish_rate").value)
 
-        # current joint positions (start at home = all zeros)
+        # Start at all-zeros = physical home (both motors at 0°, links straight up)
         self._positions = [0.0] * len(self.ALL_JOINTS)
         self._target_received = False   # don't drive motors until first /ik_target
+        self._current_ik_target = None  # no target until user sends one
+
+        # IK origin (midpoint of motor shafts)
+        self._ik_origin = (self._POS_ML + self._POS_MR) / 2.0
 
         # ---- Ball state ----
         # Each entry: hole_name → {"tray": "front"|"left", "held": False}
@@ -156,18 +153,9 @@ class FiveBarIKNode(Node):
         }
         self._held_ball = None  # name of ball currently gripped by suction
         self._suction_on = False
-        self._current_ik_target = (0.0, 0.25)  # track last IK target for EE pos
 
         # FK-tracked nozzle tip position (world). Updated on every IK target.
         self._suction_world_pos = None
-
-        # IK origin (midpoint of motor shafts)
-        self._ik_origin = (self._POS_ML + self._POS_MR) / 2.0
-
-        # Compute initial suction position
-        suc = self._compute_suction_world(0.0, 0.25)
-        if suc is not None:
-            self._suction_world_pos = suc.copy()
 
         # publisher & subscriber
         self._js_pub = self.create_publisher(JointState, "/joint_states", 10)
@@ -230,11 +218,14 @@ class FiveBarIKNode(Node):
     @staticmethod
     def _motor_ik_to_urdf(th_ik):
         """
-        IK plane : θ=0 → crank along +X,  θ=π/2 → crank along +Y
-        URDF     : θ=0 → crank along +Y,  θ=π/2 → crank along +X
-        (joint frames rotated -90° about X, rotation axis = local Y)
+        IK plane : θ=0 → crank along +X,  θ=π/2 → crank along +Y (straight up)
+        URDF     : θ=0 → crank straight up (physical home, motor 0°)
 
-        Mapping : θ_urdf = π/2 − θ_ik
+        The URDF joint rpy already encodes the motor mounting orientation
+        (including yaw). Adding yaw here would double-count it.
+        Physical motor 0° = links parallel/straight up = IK π/2 → URDF 0.
+
+            θ_urdf = π/2 − θ_ik
         """
         return math.pi / 2.0 - th_ik
 
@@ -310,18 +301,11 @@ class FiveBarIKNode(Node):
         # Right-link (coupler) orientation in world
         R_right = A @ _Ry(pass_angle)
 
-        # suction_link orientation & origin in world
-        # (rotation from right_link -> suction_link is fixed in URDF)
-        R_suction = R_right @ _rpy(-math.pi / 2.0, math.pi / 2.0, 0.0)
-        p_suction = crank_tip + R_right @ self._SUCTION_XYZ
+        # Endeffector position in world (Joint_5 is fixed-like on Link_3)
+        R_ee = R_right @ _rpy(-3.1416, -1.5579, 0.0)
+        p_ee = crank_tip + R_right @ self._SUCTION_XYZ
 
-        # channel_suction_link origin and orientation in world
-        p_channel = p_suction + R_suction @ self._CHANNEL_XYZ
-        R_channel = R_suction @ self._R_CHANNEL
-
-        # nozzle tip in world
-        tip_world = p_channel + R_channel @ self._TIP_CH
-        return tip_world
+        return p_ee
 
     def _solve_ik_for_suction(self, target_wx, target_wy, max_iter=5):
         """
@@ -717,12 +701,15 @@ class FiveBarIKNode(Node):
         self._debug_pub.publish(ma)
 
     def _publish_js(self):
-        if not self._target_received:
-            return  # don't publish until first /ik_target → prevents startup arm motion
         js = JointState()
         js.header.stamp = self.get_clock().now().to_msg()
         js.name = list(self.ALL_JOINTS)
-        js.position = list(self._positions)
+        # Only publish IK-computed positions after a real /ik_target is received;
+        # until then publish zeros so RViz shows the robot but motors stay still.
+        if self._target_received:
+            js.position = list(self._positions)
+        else:
+            js.position = [0.0] * len(self.ALL_JOINTS)
         self._js_pub.publish(js)
 
 
