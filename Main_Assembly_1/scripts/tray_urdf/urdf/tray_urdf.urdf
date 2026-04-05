@@ -1,0 +1,100 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- This URDF was automatically created by SolidWorks to URDF Exporter! Originally created by Stephen Brawner (brawner@gmail.com) 
+     Commit Version: 1.6.0-4-g7f85cfe  Build Version: 1.6.7995.38578
+     For more information, please see http://wiki.ros.org/sw_urdf_exporter -->
+<robot
+  name="tray_urdf">
+  <link
+    name="base_link">
+    <inertial>
+      <origin
+        xyz="0.13364554811827 0.0243328126440196 0.0134721163864014"
+        rpy="0 0 0" />
+      <mass
+        value="0.101938516517183" />
+      <inertia
+        ixx="0.000208826150754234"
+        ixy="-2.37894299539038E-07"
+        ixz="1.10016958993403E-06"
+        iyy="0.000239505140236254"
+        iyz="-6.89915103749253E-06"
+        izz="3.23449772447907E-05" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://tray_urdf/meshes/base_link.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.792156862745098 0.819607843137255 0.933333333333333 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://tray_urdf/meshes/base_link.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <link
+    name="Tray">
+    <inertial>
+      <origin
+        xyz="-5.55111512312578E-17 0.00627093034826935 8.32667268468867E-17"
+        rpy="0 0 0" />
+      <mass
+        value="0.181004039525064" />
+      <inertia
+        ixx="0.000358006666448015"
+        ixy="-9.09713385351119E-19"
+        ixz="7.41153828847513E-21"
+        iyy="0.000744479435619802"
+        iyz="1.83806149554183E-19"
+        izz="0.000398108228948015" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://tray_urdf/meshes/Tray.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.792156862745098 0.819607843137255 0.933333333333333 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://tray_urdf/meshes/Tray.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="Tray_joint"
+    type="fixed">
+    <origin
+      xyz="0.134940292172613 0.117878478878035 0.0341115221239427"
+      rpy="1.57994134692215 -0.0195677523332654 -1.57755033049173" />
+    <parent
+      link="base_link" />
+    <child
+      link="Tray" />
+    <axis
+      xyz="0 0 0" />
+  </joint>
+</robot>

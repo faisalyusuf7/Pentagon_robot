@@ -1,0 +1,80 @@
+# ============================================================
+#  Pentagon Robot — Tunable Parameters
+#  Edit values here and relaunch. No code changes needed.
+# ============================================================
+
+# ── IK Node (fivebar_ik_node) ──────────────────────────────
+fivebar_ik_node:
+  ros__parameters:
+    # Linkage geometry (metres)
+    L1: 0.200                   # crank length
+    L2: 0.200                   # coupler length
+    d:  0.190                   # motor-to-motor base separation
+
+    # Joint-state publish rate (Hz)
+    publish_rate: 50.0
+
+    # Suction nozzle tip calibration offset (metres, in EE frame)
+    # Added to the URDF Joint_5 origin [-0.2, -0.0063, -0.00015]
+    suction_offset_x: 0.0
+    suction_offset_y: 0.0
+    suction_offset_z: 0.0
+
+    # Enable iterative FK correction so the *nozzle tip* (not the
+    # linkage meeting point) lands on the target hole position.
+    use_suction_correction: false
+
+# ── Pick-and-Place Planner ─────────────────────────────────
+pick_place_planner:
+  ros__parameters:
+    # Linkage geometry (must match IK node)
+    L1: 0.200
+    L2: 0.200
+    d:  0.190
+
+    # Motion speeds (m/s)
+    move_speed:    0.15         # lateral travel
+    descend_speed: 0.05         # radial in/out
+
+    # Timing (seconds)
+    arm_settle_time:   1.5      # wait for steppers to reach target
+    dwell_time:        9.5      # total dwell at pick/place
+    tick_rate:        20.0      # planner state-machine Hz
+
+    # Approach offset (metres, IK-plane Y above hole centre)
+    approach_offset: 0.04
+
+    # Ball detection
+    use_ball_detect:         true
+    ball_detect_timeout:    30.0    # safety timeout (seconds)
+    pick_raw_fallback_min:  -8000000
+    pick_raw_fallback_grace: 3.0
+
+# ── Arduino Bridge ─────────────────────────────────────────
+arduino_bridge:
+  ros__parameters:
+    serial_port: ""             # empty = auto-detect
+    baud_rate:   115200
+    send_rate:   30.0           # max command rate (Hz)
+
+# ── Suction Hardware ───────────────────────────────────────
+suction_hardware_node:
+  ros__parameters:
+    valve_pin:        15        # BCM GPIO for solenoid valve
+    servo_channel:     0        # PCA9685 channel
+    servo_down_angle:  0        # degrees — nozzle down
+    servo_up_angle:  270        # degrees — nozzle up
+    servo_settle:      1.0      # seconds to wait after servo move
+    grip_delay:        0.5      # seconds after valve open before confirming
+    release_delay:     0.5      # seconds after valve close
+
+# ── Pressure Sensor ───────────────────────────────────────
+pressure_sensor_node:
+  ros__parameters:
+    gpio_sck:            11
+    gpio_out:            27
+    picked_drop_max:    -5000000
+    released_drop_min:  -4000000
+    confirm_samples:     2
+    sample_window:       5
+    read_hz:            10.0

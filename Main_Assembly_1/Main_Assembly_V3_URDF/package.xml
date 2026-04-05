@@ -1,0 +1,14 @@
+<package format="3">
+  <name>Main_Assembly_V3_URDF</name>
+  <version>1.0.0</version>
+  <description>URDF Description package for Main_Assembly_V3_URDF</description>
+  <author>TODO</author>
+  <maintainer email="TODO@email.com">TODO</maintainer>
+  <license>BSD</license>
+  <buildtool_depend>ament_cmake</buildtool_depend>
+  <exec_depend>robot_state_publisher</exec_depend>
+  <exec_depend>joint_state_publisher_gui</exec_depend>
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>

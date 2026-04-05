@@ -1,0 +1,669 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- This URDF was automatically created by SolidWorks to URDF Exporter! Originally created by Stephen Brawner (brawner@gmail.com) 
+     Commit Version: 1.6.0-4-g7f85cfe  Build Version: 1.6.7995.38578
+     For more information, please see http://wiki.ros.org/sw_urdf_exporter -->
+<robot
+  name="Main_Assembly_1">
+
+  <!-- ============================================================ -->
+  <!--  TRAY BASE (root link – platform + ball trays)                -->
+  <!-- ============================================================ -->
+  <link
+    name="tray_base_link">
+    <inertial>
+      <origin
+        xyz="0.774930516349414 -1.59041279354193 -0.0147442021379585"
+        rpy="0 0 0" />
+      <mass
+        value="8.34945177420374" />
+      <inertia
+        ixx="0.25108535292824"
+        ixy="0.000336731615498261"
+        ixz="-5.31792297750167E-19"
+        iyy="0.341858780370816"
+        iyz="1.43814411420964E-17"
+        izz="0.592387503180776" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Main_Assembly_1/meshes/tray_base_link.STL" />
+      </geometry>
+      <material
+        name="dark_steel">
+        <color
+          rgba="0.3 0.3 0.35 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Main_Assembly_1/meshes/tray_base_link.STL" />
+      </geometry>
+    </collision>
+  </link>
+
+  <!-- Left ball tray -->
+  <link
+    name="Tray_left">
+    <inertial>
+      <origin
+        xyz="0.00108791408271713 0 -0.010056502763782"
+        rpy="0 0 0" />
+      <mass
+        value="0.693053108549229" />
+      <inertia
+        ixx="0.00141018784716623"
+        ixy="5.54909442762192E-19"
+        ixz="5.61226469623594E-06"
+        iyy="0.00334153571866475"
+        iyz="2.40543873922961E-20"
+        izz="0.00467110321129202" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Main_Assembly_1/meshes/Tray_left.STL" />
+      </geometry>
+      <material
+        name="forest_green">
+        <color
+          rgba="0.2 0.6 0.2 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Main_Assembly_1/meshes/Tray_left.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="Left_Tray_joint"
+    type="fixed">
+    <origin
+      xyz="0.5492535809654 -1.65000981549943 -0.00474420213795846"
+      rpy="3.14159265358979 0 -1.5707963267949" />
+    <parent
+      link="tray_base_link" />
+    <child
+      link="Tray_left" />
+    <axis
+      xyz="0 0 0" />
+  </joint>
+
+  <!-- Front tray assembly (new SolidWorks export) -->
+  <link
+    name="Front_tray_base">
+    <inertial>
+      <origin
+        xyz="0.13364554811827 0.0243328126440196 0.0134721163864014"
+        rpy="0 0 0" />
+      <mass
+        value="0.101938516517183" />
+      <inertia
+        ixx="0.000208826150754234"
+        ixy="-2.37894299539038E-07"
+        ixz="1.10016958993403E-06"
+        iyy="0.000239505140236254"
+        iyz="-6.89915103749253E-06"
+        izz="3.23449772447907E-05" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Main_Assembly_1/meshes/Front_tray_base_new.STL" />
+      </geometry>
+      <material
+        name="dark_steel">
+        <color
+          rgba="0.3 0.3 0.35 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Main_Assembly_1/meshes/Front_tray_base_new.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="Front_tray_base_joint"
+    type="fixed">
+    <origin
+      xyz="0.639313288792787 -1.51288829437746 -0.0388557242619012"
+      rpy="0 0 0" />
+    <parent
+      link="tray_base_link" />
+    <child
+      link="Front_tray_base" />
+    <axis
+      xyz="0 0 0" />
+  </joint>
+
+  <link
+    name="Front_tray">
+    <inertial>
+      <origin
+        xyz="-5.55111512312578E-17 0.00627093034826935 8.32667268468867E-17"
+        rpy="0 0 0" />
+      <mass
+        value="0.181004039525064" />
+      <inertia
+        ixx="0.000358006666448015"
+        ixy="-9.09713385351119E-19"
+        ixz="7.41153828847513E-21"
+        iyy="0.000744479435619802"
+        iyz="1.83806149554183E-19"
+        izz="0.000398108228948015" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Main_Assembly_1/meshes/Front_tray_new.STL" />
+      </geometry>
+      <material
+        name="forest_green">
+        <color
+          rgba="0.2 0.6 0.2 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Main_Assembly_1/meshes/Front_tray_new.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="Front_tray_joint"
+    type="fixed">
+    <origin
+      xyz="0.134940292172613 0.117878478878035 0.0341115221239427"
+      rpy="1.57994134692215 -0.0195677523332654 -1.57755033049173" />
+    <parent
+      link="Front_tray_base" />
+    <child
+      link="Front_tray" />
+    <axis
+      xyz="0 0 0" />
+  </joint>
+
+  <!-- ============================================================ -->
+  <!--  5-bar linkage plate – bolted onto tray base via 2 holes      -->
+  <!--  Adjust xyz below to align bolt holes between the two parts   -->
+  <!-- ============================================================ -->
+  <joint
+    name="tray_to_linkage_joint"
+    type="fixed">
+    <origin
+      xyz="-0.006403 -0.103113 -0.00474"
+      rpy="0 0 0" />
+    <parent
+      link="tray_base_link" />
+    <child
+      link="base_link" />
+  </joint>
+
+  <link
+    name="base_link">
+    <inertial>
+      <origin
+        xyz="0.805680430825315 -1.58675591734862 0.0231037334397369"
+        rpy="0 0 0" />
+      <mass
+        value="0.289654091949094" />
+      <inertia
+        ixx="9.96156121590874E-05"
+        ixy="3.976669537951E-07"
+        ixz="-4.15029311622579E-05"
+        iyy="0.00106919840227956"
+        iyz="-1.02308218399883E-07"
+        izz="0.00108726677110564" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Main_Assembly_1/meshes/base_link.STL" />
+      </geometry>
+      <material
+        name="navy_blue">
+        <color
+          rgba="0.1 0.15 0.5 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Main_Assembly_1/meshes/base_link.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <link
+    name="motor_link_left">
+    <inertial>
+      <origin
+        xyz="-1.54418700049064E-11 -0.00932326969848195 0.0914648714367623"
+        rpy="0 0 0" />
+      <mass
+        value="0.109977791624673" />
+      <inertia
+        ixx="0.000442481482174547"
+        ixy="-4.02742866518647E-19"
+        ixz="3.27185802124805E-16"
+        iyy="0.000450168746268331"
+        iyz="5.28508912400669E-07"
+        izz="1.19498579218419E-05" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Main_Assembly_1/meshes/motor_link_left.STL" />
+      </geometry>
+      <material
+        name="red">
+        <color
+          rgba="0.9 0.15 0.15 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Main_Assembly_1/meshes/motor_link_left.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="motor_joint_left"
+    type="revolute">
+    <origin
+      xyz="0.695406926143987 -1.58664693818658 0.0500000000000009"
+      rpy="-1.5707963267949 0 0.00292493868428481" />
+    <parent
+      link="base_link" />
+    <child
+      link="motor_link_left" />
+    <axis
+      xyz="0 1 0" />
+    <limit
+      lower="-3.14159"
+      upper="3.14159"
+      effort="10"
+      velocity="3.14" />
+  </joint>
+  <link
+    name="link_left">
+    <inertial>
+      <origin
+        xyz="-0.087078 0.014014 0.000016"
+        rpy="0 0 0" />
+      <mass
+        value="0.0600036589888041" />
+      <inertia
+        ixx="6.19740935034774E-06"
+        ixy="-5.52487837124007E-07"
+        ixz="5.04061862338461E-13"
+        iyy="0.000187765814649012"
+        iyz="3.50499586236939E-11"
+        izz="0.000183124893454539" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="-0.099991 0.009 0.000016"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Main_Assembly_1/meshes/link_left.STL" />
+      </geometry>
+      <material
+        name="yellow">
+        <color
+          rgba="1.0 0.85 0.0 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="-0.099991 0.009 0.000016"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Main_Assembly_1/meshes/link_left.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="joint_link_left"
+    type="revolute">
+    <origin
+      xyz="0.000019 -0.014000 0.200001"
+      rpy="0 1.07736121547448 3.14159265358979" />
+    <parent
+      link="motor_link_left" />
+    <child
+      link="link_left" />
+    <axis
+      xyz="0 1 0" />
+    <limit
+      lower="-3.14159"
+      upper="3.14159"
+      effort="10"
+      velocity="3.14" />
+  </joint>
+  <link
+    name="motor_Link_right">
+    <inertial>
+      <origin
+        xyz="-6.95365987013474E-12 -0.00932326969848239 0.0914648714413329"
+        rpy="0 0 0" />
+      <mass
+        value="0.109977791624673" />
+      <inertia
+        ixx="0.000442481482174547"
+        ixy="2.56715668541955E-18"
+        ixz="-2.0877633011466E-15"
+        iyy="0.000450168746268331"
+        iyz="5.28508912401265E-07"
+        izz="1.19498579218419E-05" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Main_Assembly_1/meshes/motor_Link_right.STL" />
+      </geometry>
+      <material
+        name="orange">
+        <color
+          rgba="1.0 0.5 0.0 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Main_Assembly_1/meshes/motor_Link_right.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="motor_joint_right"
+    type="revolute">
+    <origin
+      xyz="0.885406926135972 -1.58664693819113 0.0699999999999998"
+      rpy="-1.5707963267949 0 0.0108765596422485" />
+    <parent
+      link="base_link" />
+    <child
+      link="motor_Link_right" />
+    <axis
+      xyz="0 1 0" />
+    <limit
+      lower="-3.14159"
+      upper="3.14159"
+      effort="10"
+      velocity="3.14" />
+  </joint>
+  <link
+    name="right_link">
+    <inertial>
+      <origin
+        xyz="-0.104422420431331 -0.0220002123421804 -2.58060937122773E-05"
+        rpy="0 0 0" />
+      <mass
+        value="0.104519628648809" />
+      <inertia
+        ixx="1.36957339503706E-05"
+        ixy="7.35058317793691E-06"
+        ixz="-2.51188281300221E-07"
+        iyy="0.00044176848046302"
+        iyz="8.76936198134352E-09"
+        izz="0.00043430166486248" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Main_Assembly_1/meshes/right_link.STL" />
+      </geometry>
+      <material
+        name="cyan">
+        <color
+          rgba="0.0 0.8 0.8 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Main_Assembly_1/meshes/right_link.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="right_joint_link"
+    type="revolute">
+    <origin
+      xyz="0 -0.00309999999999989 0.199999999999012"
+      rpy="0 1.09202325866201 0" />
+    <parent
+      link="motor_Link_right" />
+    <child
+      link="right_link" />
+    <axis
+      xyz="0 1 0" />
+    <limit
+      lower="-3.14159"
+      upper="3.14159"
+      effort="10"
+      velocity="3.14" />
+  </joint>
+  <link
+    name="suction_link">
+    <inertial>
+      <origin
+        xyz="0.00679369117041895 -0.0145482097169509 -0.00128696369024124"
+        rpy="0 0 0" />
+      <mass
+        value="0.0268082361958619" />
+      <inertia
+        ixx="9.08742062637334E-06"
+        ixy="1.51467396083754E-06"
+        ixz="3.57537417105619E-07"
+        iyy="1.05274776989344E-05"
+        iyz="-1.94532483977893E-07"
+        izz="8.56493108956381E-06" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Main_Assembly_1/meshes/suction_link.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0 0 1 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Main_Assembly_1/meshes/suction_link.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="suction_joint_link"
+    type="fixed">
+    <origin
+      xyz="-0.20999988943129 -0.0469999999999999 -0.000148706565137574"
+      rpy="-1.5707963267949 1.57079630572147 0" />
+    <parent
+      link="right_link" />
+    <child
+      link="suction_link" />
+    <axis
+      xyz="0 0 0" />
+  </joint>
+  <link
+    name="channel_suction_link">
+    <inertial>
+      <origin
+        xyz="1.25259489234253E-05 0.0552329246642761 0.000202367284022342"
+        rpy="0 0 0" />
+      <mass
+        value="0.0202889537859732" />
+      <inertia
+        ixx="1.69635199921382E-05"
+        ixy="-3.25516378496012E-10"
+        ixz="-2.01772623475081E-09"
+        iyy="1.33291142987697E-06"
+        iyz="-5.26032721975948E-09"
+        izz="1.74341612018434E-05" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Main_Assembly_1/meshes/channel_suction_link.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="1 0.752941176470588 1 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Main_Assembly_1/meshes/channel_suction_link.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="suction_channel"
+    type="fixed">
+    <origin
+      xyz="-0.000149999999999983 -0.0098999999999998 0.05"
+      rpy="-1.5707963267949 0 3.14159265358979" />
+    <parent
+      link="suction_link" />
+    <child
+      link="channel_suction_link" />
+    <axis
+      xyz="0 0 0" />
+  </joint>
+  <link
+    name="gear_suction">
+    <inertial>
+      <origin
+        xyz="0.000446088333350581 -2.22044604925031E-16 1.11022302462516E-16"
+        rpy="0 0 0" />
+      <mass
+        value="0.00121150346406919" />
+      <inertia
+        ixx="6.08045347881051E-08"
+        ixy="3.97046694025453E-23"
+        ixz="-3.80503081774393E-23"
+        iyy="3.27628945863109E-08"
+        iyz="-7.36190745172195E-23"
+        izz="3.27628945863109E-08" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Main_Assembly_1/meshes/gear_suction.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="1 0.949019607843137 0.909803921568627 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Main_Assembly_1/meshes/gear_suction.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="gear_servo_suction_joint"
+    type="revolute">
+    <origin
+      xyz="0 -0.0289499999999996 -0.0131"
+      rpy="0.402010990334476 0 3.14159265358979" />
+    <parent
+      link="suction_link" />
+    <child
+      link="gear_suction" />
+    <axis
+      xyz="1 0 0" />
+    <limit
+      lower="-3.14159"
+      upper="3.14159"
+      effort="10"
+      velocity="3.14" />
+  </joint>
+
+</robot>

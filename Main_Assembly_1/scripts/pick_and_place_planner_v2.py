@@ -72,15 +72,15 @@ FRONT_TRAY_HOLES = {
 }
 
 LEFT_TRAY_HOLES = {
-    "L0": (0.594254, -1.600010, 0.000256),
-    "L1": (0.549254, -1.600010, 0.000256),
-    "L2": (0.504254, -1.600010, 0.000256),
-    "L3": (0.594254, -1.645010, 0.000256),
-    "L4": (0.549254, -1.645010, 0.000256),
-    "L5": (0.504254, -1.645010, 0.000256),
-    "L6": (0.594254, -1.690010, 0.000256),
-    "L7": (0.549254, -1.690010, 0.000256),
-    "L8": (0.504254, -1.690010, 0.000256),
+    "L0": (0.594254, -1.645010, 0.000256),
+    "L1": (0.549254, -1.645010, 0.000256),
+    "L2": (0.504254, -1.645010, 0.000256),
+    "L3": (0.594254, -1.690010, 0.000256),
+    "L4": (0.549254, -1.690010, 0.000256),
+    "L5": (0.504254, -1.690010, 0.000256),
+    "L6": (0.594254, -1.735010, 0.000256),
+    "L7": (0.549254, -1.735010, 0.000256),
+    "L8": (0.504254, -1.735010, 0.000256),
 }
 
 ALL_HOLES = {**FRONT_TRAY_HOLES, **LEFT_TRAY_HOLES}
@@ -200,10 +200,11 @@ def solve_ik_for_suction(target_wx, target_wy, max_iter=5):
 
 
 def world_to_ik(wx, wy):
-    """Convert world (x, y) → IK plane (x, y) with suction offset correction."""
-    result = solve_ik_for_suction(wx, wy)
-    if result is not None:
-        return result
+    """Convert world (x, y) → IK plane (x, y)."""
+    # Suction FK correction disabled — stale old-URDF constants cause drift
+    # result = solve_ik_for_suction(wx, wy)
+    # if result is not None:
+    #     return result
     return wx - IK_ORIGIN[0], wy - IK_ORIGIN[1]
 
 

@@ -8,9 +8,9 @@ Arduino over serial.
 
 Angle convention
 ----------------
-    URDF:      θ_urdf = 0  when crank points +Y  (home)
-    Stepper:   θ_step = 0  when crank points up   (home)
-    Mapping:   θ_step = −degrees(θ_urdf)
+    URDF:      θ_urdf = yaw  when crank points +Y  (home)
+    Stepper:   θ_step = 0    when crank points up  (home)
+    Mapping:   θ_step = −degrees(θ_urdf − yaw_offset)
 
 Serial protocol  (to Arduino)
 ------------------------------
@@ -39,6 +39,10 @@ class ArduinoBridge(Node):
     # Joint names from V3 URDF (must match five_bar_ik_node.py ALL_JOINTS)
     MOTOR_LEFT_JOINT  = "Joint_2"
     MOTOR_RIGHT_JOINT = "Joint_1"
+
+    # URDF angle at physical home (crank up) = motor mounting yaw from URDF rpy
+    _YAW_LEFT  =  0.37069   # Joint_2 yaw
+    _YAW_RIGHT = -0.40717   # Joint_1 yaw
 
     def __init__(self):
         super().__init__("arduino_bridge")
@@ -158,8 +162,9 @@ class ArduinoBridge(Node):
                     step_L = float(m.group(1))
                     step_R = float(m.group(2))
                     # Convert stepper degrees back to URDF radians.
-                    urdf_L = math.radians(-step_L)
-                    urdf_R = math.radians(-step_R)
+                    # step = -degrees(urdf - yaw)  →  urdf = -radians(step) + yaw
+                    urdf_L = math.radians(-step_L) + self._YAW_LEFT
+                    urdf_R = math.radians(-step_R) + self._YAW_RIGHT
                     fb = JointState()
                     fb.header.stamp = self.get_clock().now().to_msg()
                     fb.name     = [self.MOTOR_LEFT_JOINT, self.MOTOR_RIGHT_JOINT]
@@ -182,9 +187,10 @@ class ArduinoBridge(Node):
         urdf_L = msg.position[idx_L]   # radians
         urdf_R = msg.position[idx_R]
 
-        # URDF → stepper degrees:  step = -degrees(urdf)
-        step_L = -math.degrees(urdf_L)
-        step_R = -math.degrees(urdf_R)
+        # URDF → stepper degrees:  step = -degrees(urdf - yaw_offset)
+        # At home (urdf = yaw), step = 0°
+        step_L = -math.degrees(urdf_L - self._YAW_LEFT)
+        step_R = -math.degrees(urdf_R - self._YAW_RIGHT)
 
         self._pending_L = step_L
         self._pending_R = step_R

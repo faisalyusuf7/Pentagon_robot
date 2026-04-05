@@ -94,6 +94,10 @@ class MksServo42cBridge(Node):
     MOTOR_LEFT_JOINT  = "Joint_2"
     MOTOR_RIGHT_JOINT = "Joint_1"
 
+    # URDF angle at physical home (crank up) = motor mounting yaw from URDF rpy
+    _YAW_LEFT  =  0.37069   # Joint_2 yaw
+    _YAW_RIGHT = -0.40717   # Joint_1 yaw
+
     def __init__(self):
         super().__init__("arduino_bridge")   # keep same node name for compatibility
 
@@ -344,9 +348,9 @@ class MksServo42cBridge(Node):
         urdf_R = msg.position[idx_R]
 
         # Same mapping as the original arduino_bridge.py:
-        #   step_deg = 90 − degrees(urdf_rad)
-        self._pending_L = 90.0 - math.degrees(urdf_L)
-        self._pending_R = 90.0 - math.degrees(urdf_R)
+        #   step_deg = 90 − degrees(urdf_rad − yaw_offset)
+        self._pending_L = 90.0 - math.degrees(urdf_L - self._YAW_LEFT)
+        self._pending_R = 90.0 - math.degrees(urdf_R - self._YAW_RIGHT)
         self._dirty = True
 
     # ── /arduino_enable callback ──────────────────────────────────────────────

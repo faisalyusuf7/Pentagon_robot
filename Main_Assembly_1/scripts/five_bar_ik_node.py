@@ -54,6 +54,9 @@ def _clamp(v, lo, hi):
 class FiveBarIKNode(Node):
     """Standalone 5-bar IK → joint_states publisher."""
 
+    # Minimum IK-plane Y to prevent atan2 singularity at motor axis
+    _MIN_IK_PY = -0.06
+
     # ---- URDF constants (from V3 SolidWorks export) ----
     # Motor joint frame orientations (rpy from URDF)
     # Joint_2 = left motor, Joint_1 = right motor
@@ -98,7 +101,7 @@ class FiveBarIKNode(Node):
     HOLE_DEPTH_FRONT = 0.015       # 15 mm (front tray holes)
     HOLE_DEPTH_LEFT  = 0.003       # ~3 mm (left tray holes, much shallower)
 
-    # Hole positions: (x, y, z_top_surface) in world (tray_base_link) frame
+    # Hole positions: (x, y, z_top_surface) in world frame
     # z_top_surface = Z of the tray top where the hole rim is
     FRONT_TRAY_HOLES = {
         "F0": (0.724254, -1.440010, 0.020256),
@@ -112,15 +115,15 @@ class FiveBarIKNode(Node):
         "F8": (0.824004, -1.349760, 0.020256),
     }
     LEFT_TRAY_HOLES = {
-        "L0": (0.594254, -1.600010, 0.000256),
-        "L1": (0.549254, -1.600010, 0.000256),
-        "L2": (0.504254, -1.600010, 0.000256),
-        "L3": (0.594254, -1.645010, 0.000256),
-        "L4": (0.549254, -1.645010, 0.000256),
-        "L5": (0.504254, -1.645010, 0.000256),
-        "L6": (0.594254, -1.690010, 0.000256),
-        "L7": (0.549254, -1.690010, 0.000256),
-        "L8": (0.504254, -1.690010, 0.000256),
+        "L0": (0.594254, -1.645010, 0.000256),
+        "L1": (0.549254, -1.645010, 0.000256),
+        "L2": (0.504254, -1.645010, 0.000256),
+        "L3": (0.594254, -1.690010, 0.000256),
+        "L4": (0.549254, -1.690010, 0.000256),
+        "L5": (0.504254, -1.690010, 0.000256),
+        "L6": (0.594254, -1.735010, 0.000256),
+        "L7": (0.549254, -1.735010, 0.000256),
+        "L8": (0.504254, -1.735010, 0.000256),
     }
 
     def __init__(self):
@@ -131,14 +134,50 @@ class FiveBarIKNode(Node):
         self.declare_parameter("L2", 0.200)          # coupler length (m)
         self.declare_parameter("d",  0.190)          # base separation (m)
         self.declare_parameter("publish_rate", 50.0) # Hz
+        self.declare_parameter("suction_offset_x", 0.01)# nozzle tip offset in EE frame (m)
+        self.declare_parameter("suction_offset_y", 0.0)
+        self.declare_parameter("suction_offset_z", 0.0)
+        self.declare_parameter("use_suction_correction", True)
 
         self.L1 = float(self.get_parameter("L1").value)
         self.L2 = float(self.get_parameter("L2").value)
         self.d  = float(self.get_parameter("d").value)
         rate    = float(self.get_parameter("publish_rate").value)
 
-        # Start at all-zeros = physical home (both motors at 0°, links straight up)
-        self._positions = [0.0] * len(self.ALL_JOINTS)
+        # Suction nozzle tip = Joint_5 URDF origin + user-tunable offset
+        suc_off = np.array([
+            float(self.get_parameter("suction_offset_x").value),
+            float(self.get_parameter("suction_offset_y").value),
+            float(self.get_parameter("suction_offset_z").value),
+        ])
+        self._suction_xyz = self._SUCTION_XYZ + suc_off
+        self._use_suction_correction = bool(
+            self.get_parameter("use_suction_correction").value)
+        self.get_logger().info(
+            f"Suction offset: {suc_off.tolist()} → "
+            f"effective tip: {self._suction_xyz.tolist()}  "
+            f"suction_correction={'ON' if self._use_suction_correction else 'OFF'}"
+        )
+
+        # Home position: both cranks straight up = IK θ = π/2
+        # URDF angle at home = yaw (not zero!)
+        th1_home = self._YAW_ML    # left motor URDF home
+        th2_home = self._YAW_MR    # right motor URDF home
+
+        # Compute passive angles at home via 3D meeting point
+        meeting = self._compute_3d_meeting(th1_home, th2_home)
+        if meeting is None:
+            # Fallback: straight up, IK target (0, L1+L2)
+            meeting = self._compute_target_world(0.0, self.L1 + self.L2)
+        pass_L_home = self._passive_urdf_angle(
+            th1_home, self._R_ML, self._POS_ML,
+            self._PASS_L_XYZ, self._R_PL_INIT, meeting)
+        pass_R_home = self._passive_urdf_angle(
+            th2_home, self._R_MR, self._POS_MR,
+            self._PASS_R_XYZ, self._R_PR_INIT, meeting)
+
+        self._home_positions = [th1_home, th2_home, pass_L_home, pass_R_home, 0.0]
+        self._positions = list(self._home_positions)
         self._target_received = False   # don't drive motors until first /ik_target
         self._current_ik_target = None  # no target until user sends one
 
@@ -211,23 +250,31 @@ class FiveBarIKNode(Node):
         ca2  = _clamp((L1*L1 + r2*r2 - L2*L2) / (2.0*L1*r2), -1, 1)
         th2  = phi2 - math.acos(ca2)
 
+        # Normalize to [0, 2π] so the branch cut is at 0° (behind robot)
+        # instead of at ±π (left tray area). Prevents 360° jumps when
+        # targets cross the motor axis (y ≈ 0).
+        TWO_PI = 2.0 * math.pi
+        th1 = th1 % TWO_PI
+        th2 = th2 % TWO_PI
+
         return th1, th2
 
     #  IK → URDF angle mapping
     
     @staticmethod
-    def _motor_ik_to_urdf(th_ik):
+    def _motor_ik_to_urdf(th_ik, yaw):
         """
         IK plane : θ=0 → crank along +X,  θ=π/2 → crank along +Y (straight up)
-        URDF     : θ=0 → crank straight up (physical home, motor 0°)
+        URDF     : θ=0 → crank straight up in the motor's local frame
 
-        The URDF joint rpy already encodes the motor mounting orientation
-        (including yaw). Adding yaw here would double-count it.
-        Physical motor 0° = links parallel/straight up = IK π/2 → URDF 0.
+        The IK solver works in a global frame where both motors share one
+        coordinate system.  Each motor's URDF joint frame is rotated by its
+        mounting yaw, so converting from global IK angle to motor-local
+        URDF angle requires adding the yaw:
 
-            θ_urdf = π/2 − θ_ik
+            θ_urdf = π/2 − θ_ik + yaw
         """
-        return math.pi / 2.0 - th_ik
+        return math.pi / 2.0 - th_ik + yaw
 
     def _passive_urdf_angle(self, th_motor_urdf, R_motor, pos_motor,
                             pass_xyz, R_pass_init, target_world):
@@ -268,6 +315,36 @@ class FiveBarIKNode(Node):
         mid = (self._POS_ML + self._POS_MR) / 2.0
         return np.array([mid[0] + px, mid[1] + py, mid[2]])
 
+    def _compute_3d_meeting(self, th1_urdf, th2_urdf):
+        """Exact 3D meeting point from both crank tips (sphere-sphere intersection).
+
+        Returns np.array([x, y, z]) or None if unreachable.
+        """
+        ct_L = self._POS_ML + self._R_ML @ _Ry(th1_urdf) @ self._PASS_L_XYZ
+        ct_R = self._POS_MR + self._R_MR @ _Ry(th2_urdf) @ self._PASS_R_XYZ
+
+        baseline = ct_R - ct_L
+        d_ct = np.linalg.norm(baseline)
+        if d_ct < 1e-9 or d_ct > 2.0 * self.L2:
+            return None
+
+        n_b = baseline / d_ct
+        mid_ct = (ct_L + ct_R) / 2.0
+        h_sq = self.L2 ** 2 - (d_ct / 2.0) ** 2
+        if h_sq < 0.0:
+            return None
+        h = math.sqrt(h_sq)
+
+        # "Up" direction perpendicular to baseline, toward +Y in world
+        up = np.array([0.0, 1.0, 0.0])
+        up_perp = up - np.dot(up, n_b) * n_b
+        norm_up = np.linalg.norm(up_perp)
+        if norm_up < 1e-9:
+            return None
+        up_perp /= norm_up
+
+        return mid_ct + h * up_perp
+
     # ================================================================ #
     #  Suction tip FK — actual suction_link world position
     # ================================================================ #
@@ -284,17 +361,21 @@ class FiveBarIKNode(Node):
         if sol is None:
             return None
 
-        _, th2_ik = sol
-        th2_urdf = self._motor_ik_to_urdf(th2_ik)
+        th1_ik, th2_ik = sol
+        th1_urdf = self._motor_ik_to_urdf(th1_ik, self._YAW_ML)
+        th2_urdf = self._motor_ik_to_urdf(th2_ik, self._YAW_MR)
 
         # Right motor frame → crank tip (passive joint origin)
         R_mr = self._R_MR @ _Ry(th2_urdf)
         crank_tip = self._POS_MR + R_mr @ self._PASS_R_XYZ
 
-        # Passive angle on right coupler
-        target_w = self._compute_target_world(px, py)
+        # 3D meeting point for right passive angle
+        meeting = self._compute_3d_meeting(th1_urdf, th2_urdf)
+        if meeting is None:
+            meeting = self._compute_target_world(px, py)
+
         A = R_mr @ self._R_PR_INIT
-        delta = target_w - crank_tip
+        delta = meeting - crank_tip
         v = np.linalg.inv(A) @ delta
         pass_angle = math.atan2(v[2], -v[0])
 
@@ -303,7 +384,7 @@ class FiveBarIKNode(Node):
 
         # Endeffector position in world (Joint_5 is fixed-like on Link_3)
         R_ee = R_right @ _rpy(-3.1416, -1.5579, 0.0)
-        p_ee = crank_tip + R_right @ self._SUCTION_XYZ
+        p_ee = crank_tip + R_right @ self._suction_xyz
 
         return p_ee
 
@@ -331,10 +412,43 @@ class FiveBarIKNode(Node):
 
         return (px, py)
 
+    def _correct_for_suction(self, target_ikx, target_iky, max_iter=6):
+        """
+        Iteratively adjust IK target so the FK-computed suction tip
+        lands at the desired IK-plane position (target_ikx, target_iky).
+        Returns corrected (px, py) or None if unreachable.
+        """
+        mid = self._ik_origin
+        px = target_ikx
+        py = max(target_iky, self._MIN_IK_PY)
+        for _ in range(max_iter):
+            suc = self._compute_suction_world(px, py)
+            if suc is None:
+                return None
+            suc_ikx = suc[0] - mid[0]
+            suc_iky = suc[1] - mid[1]
+            err_x = target_ikx - suc_ikx
+            err_y = target_iky - suc_iky
+            if math.hypot(err_x, err_y) < 0.0002:
+                break
+            px += err_x
+            py = max(py + err_y, self._MIN_IK_PY)
+        return (px, py)
+
     #  Callbacks
     def _cb_target(self, msg: Point):
         self._target_received = True
-        sol = self._solve_motor_ik(msg.x, msg.y)
+
+        # Clamp IK Y to prevent motor-axis singularity
+        ikx, iky = msg.x, max(msg.y, self._MIN_IK_PY)
+
+        # Apply suction FK correction so the *nozzle tip* hits the target
+        if self._use_suction_correction:
+            corrected = self._correct_for_suction(msg.x, msg.y)
+            if corrected is not None:
+                ikx, iky = corrected
+
+        sol = self._solve_motor_ik(ikx, iky)
         if sol is None:
             self.get_logger().warn(
                 f"Target ({msg.x:.3f}, {msg.y:.3f}) unreachable"
@@ -342,18 +456,22 @@ class FiveBarIKNode(Node):
             return
 
         th1_ik, th2_ik = sol
-        th1_urdf = self._motor_ik_to_urdf(th1_ik)
-        th2_urdf = self._motor_ik_to_urdf(th2_ik)
+        th1_urdf = self._motor_ik_to_urdf(th1_ik, self._YAW_ML)
+        th2_urdf = self._motor_ik_to_urdf(th2_ik, self._YAW_MR)
 
-        target_w = self._compute_target_world(msg.x, msg.y)
+        # Exact 3D meeting point from both crank tips
+        meeting = self._compute_3d_meeting(th1_urdf, th2_urdf)
+        if meeting is None:
+            meeting = self._compute_target_world(ikx, iky)
 
-        pass_L = self._passive_urdf_angle(
-            th1_urdf, self._R_ML, self._POS_ML,
-            self._PASS_L_XYZ, self._R_PL_INIT, target_w,
-        )
+        # Both passive angles target the 3D meeting point
         pass_R = self._passive_urdf_angle(
             th2_urdf, self._R_MR, self._POS_MR,
-            self._PASS_R_XYZ, self._R_PR_INIT, target_w,
+            self._PASS_R_XYZ, self._R_PR_INIT, meeting,
+        )
+        pass_L = self._passive_urdf_angle(
+            th1_urdf, self._R_ML, self._POS_ML,
+            self._PASS_L_XYZ, self._R_PL_INIT, meeting,
         )
 
         self._positions = [th1_urdf, th2_urdf, pass_L, pass_R, 0.0]
@@ -362,7 +480,7 @@ class FiveBarIKNode(Node):
         self._current_ik_target = (msg.x, msg.y)
 
         # Compute actual suction tip position via FK
-        suc = self._compute_suction_world(msg.x, msg.y)
+        suc = self._compute_suction_world(ikx, iky)
         if suc is not None:
             self._suction_world_pos = suc.copy()
 
@@ -487,6 +605,8 @@ class FiveBarIKNode(Node):
         """Return the current suction-tip world position (x, y, z) via FK."""
         if self._suction_world_pos is not None:
             return self._suction_world_pos.copy()
+        if self._current_ik_target is None:
+            return np.array([0.0, 0.0, 0.0])
         # fallback to IK meeting point
         return self._compute_target_world(*self._current_ik_target)
 
@@ -501,8 +621,10 @@ class FiveBarIKNode(Node):
             if self._suction_world_pos is not None:
                 s = self._suction_world_pos
                 return (s[0], s[1], s[2])
-            ee = self._compute_target_world(*self._current_ik_target)
-            return (ee[0], ee[1], ee[2])
+            if self._current_ik_target is not None:
+                ee = self._compute_target_world(*self._current_ik_target)
+                return (ee[0], ee[1], ee[2])
+            return (0.0, 0.0, 0.0)
         holes = self.FRONT_TRAY_HOLES if info["tray"] == "front" \
                 else self.LEFT_TRAY_HOLES
         hx, hy, z_top = holes[ball_name]
@@ -520,7 +642,7 @@ class FiveBarIKNode(Node):
                 continue
 
             m = Marker()
-            m.header.frame_id = "tray_base_link"
+            m.header.frame_id = "world"
             m.header.stamp = self.get_clock().now().to_msg()
             m.ns = "balls"
             m.id = idx
@@ -555,7 +677,7 @@ class FiveBarIKNode(Node):
 
         def add_hole(name, x, y, z, idx, r, g, b):
             m = Marker()
-            m.header.frame_id = "tray_base_link"
+            m.header.frame_id = "world"
             m.header.stamp = now
             m.ns = "holes"
             m.id = idx
@@ -575,7 +697,7 @@ class FiveBarIKNode(Node):
             ma.markers.append(m)
 
             t = Marker()
-            t.header.frame_id = "tray_base_link"
+            t.header.frame_id = "world"
             t.header.stamp = now
             t.ns = "hole_labels"
             t.id = 1000 + idx
@@ -612,13 +734,15 @@ class FiveBarIKNode(Node):
 
     def _publish_debug_markers(self):
         """Publish debug markers for nozzle tip + IK meeting point."""
+        if self._current_ik_target is None:
+            return
         ma = MarkerArray()
         now = self.get_clock().now().to_msg()
 
         # 1) IK meeting-point in world (what /ik_target directly represents)
         ik_w = self._compute_target_world(*self._current_ik_target)
         m_ik = Marker()
-        m_ik.header.frame_id = "tray_base_link"
+        m_ik.header.frame_id = "world"
         m_ik.header.stamp = now
         m_ik.ns = "ee_debug"
         m_ik.id = 1
@@ -638,7 +762,7 @@ class FiveBarIKNode(Node):
         ma.markers.append(m_ik)
 
         t_ik = Marker()
-        t_ik.header.frame_id = "tray_base_link"
+        t_ik.header.frame_id = "world"
         t_ik.header.stamp = now
         t_ik.ns = "ee_debug_text"
         t_ik.id = 101
@@ -660,7 +784,7 @@ class FiveBarIKNode(Node):
         if self._suction_world_pos is not None:
             tip = self._suction_world_pos
             m_tip = Marker()
-            m_tip.header.frame_id = "tray_base_link"
+            m_tip.header.frame_id = "world"
             m_tip.header.stamp = now
             m_tip.ns = "ee_debug"
             m_tip.id = 2
@@ -680,7 +804,7 @@ class FiveBarIKNode(Node):
             ma.markers.append(m_tip)
 
             t_tip = Marker()
-            t_tip.header.frame_id = "tray_base_link"
+            t_tip.header.frame_id = "world"
             t_tip.header.stamp = now
             t_tip.ns = "ee_debug_text"
             t_tip.id = 102
@@ -704,12 +828,11 @@ class FiveBarIKNode(Node):
         js = JointState()
         js.header.stamp = self.get_clock().now().to_msg()
         js.name = list(self.ALL_JOINTS)
-        # Only publish IK-computed positions after a real /ik_target is received;
-        # until then publish zeros so RViz shows the robot but motors stay still.
+        # Publish home position until first /ik_target, then IK-computed positions.
         if self._target_received:
             js.position = list(self._positions)
         else:
-            js.position = [0.0] * len(self.ALL_JOINTS)
+            js.position = list(self._home_positions)
         self._js_pub.publish(js)
 
 

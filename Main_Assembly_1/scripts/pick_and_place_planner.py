@@ -40,15 +40,15 @@ FRONT_TRAY_HOLES = {
 }
 
 LEFT_TRAY_HOLES = {
-    "L0": (0.594254, -1.600010, 0.000256),
-    "L1": (0.549254, -1.600010, 0.000256),
-    "L2": (0.504254, -1.600010, 0.000256),
-    "L3": (0.594254, -1.645010, 0.000256),
-    "L4": (0.549254, -1.645010, 0.000256),
-    "L5": (0.504254, -1.645010, 0.000256),
-    "L6": (0.594254, -1.690010, 0.000256),
-    "L7": (0.549254, -1.690010, 0.000256),
-    "L8": (0.504254, -1.690010, 0.000256),
+    "L0": (0.594254, -1.645010, 0.000256),
+    "L1": (0.549254, -1.645010, 0.000256),
+    "L2": (0.504254, -1.645010, 0.000256),
+    "L3": (0.594254, -1.690010, 0.000256),
+    "L4": (0.549254, -1.690010, 0.000256),
+    "L5": (0.504254, -1.690010, 0.000256),
+    "L6": (0.594254, -1.735010, 0.000256),
+    "L7": (0.549254, -1.735010, 0.000256),
+    "L8": (0.504254, -1.735010, 0.000256),
 }
 
 ALL_HOLES = {**FRONT_TRAY_HOLES, **LEFT_TRAY_HOLES}
@@ -175,11 +175,11 @@ def solve_ik_for_suction(target_wx, target_wy, max_iter=5):
 
 
 def world_to_ik(wx, wy):
-    """Convert world (x, y) → IK plane (x, y) with suction offset correction."""
-    result = solve_ik_for_suction(wx, wy)
-    if result is not None:
-        return result
-    # fallback: direct mapping (unreachable target)
+    """Convert world (x, y) → IK plane (x, y)."""
+    # Suction FK correction disabled — stale old-URDF constants cause drift
+    # result = solve_ik_for_suction(wx, wy)
+    # if result is not None:
+    #     return result
     return wx - IK_ORIGIN[0], wy - IK_ORIGIN[1]
 
 
@@ -226,6 +226,7 @@ class PickAndPlacePlanner(Node):
     MOVE_SPEED        = 0.15       # m/s lateral
     DESCEND_SPEED     = 0.05       # m/s radial in/out
     ARM_SETTLE_TIME   = 1.5        # seconds for physical steppers to reach target
+    SERVO_SETTLE_TIME = 2.5        # seconds for servo to reach down/up position
     DWELL_TIME        = 9.5        # seconds — must cover ARM_SETTLE + suction HW sequence
                                    # HW pick:  servo_down 2.5 + grip 3.0 + servo_up 2.5 = 8.0
                                    # HW place: servo_down 2.5 + release 2.0 + 0.1 + servo_up 2.5 = 7.1
@@ -235,9 +236,9 @@ class PickAndPlacePlanner(Node):
     PICK_RAW_FALLBACK_GRACE = 0.4  # ignore pressure spikes immediately after suction starts
     HOME_POS          = (-0.02115, 0.25464)  # Just above F3 (radius 0.156m, angle 97.8°)
     TICK_RATE         = 30.0       # Hz
-    TRANSFER_RADIUS   = 0.26      # safe radial dist for lateral moves (m)
+    TRANSFER_RADIUS   = 0.2      # safe radial dist for lateral moves (m)
     TRANSFER_ARC_SPEED = 0.26     # m/s along the arc
-    MIN_SAFE_RADIUS   = 0.23       # m: avoid planning straight segments that go inside this radius (singularity zone)
+    MIN_SAFE_RADIUS   = 0.15     # m: avoid planning straight segments that go inside this radius (singularity zone)
 
     # Reachability fallback
     MIN_APPROACH      = 0.01       # m
@@ -602,16 +603,13 @@ class PickAndPlacePlanner(Node):
             self._pick_seen_false = False
             self._pick_arm_time = 0.0
 
-            # Send servo down first, then wait for it to settle
-            cmd = String()
-            cmd.data = "servo_down"
-            self._suc_manual.publish(cmd)
-            self.get_logger().info("  Servo down command sent")
-            # Phase 1: let servo + arm settle before triggering suction
+            # Phase 1: wait for arm to physically reach the target position
+            # Servo stays UP until the arm has settled
             self._dwell_settled = False
+            self._servo_sent = False
             self._settle_end = time.monotonic() + self._arm_settle
             # dwell_end set after settle (sensor-driven with safety timeout)
-            self._dwell_end = self._settle_end + self._ball_detect_timeout
+            self._dwell_end = self._settle_end + self.SERVO_SETTLE_TIME + self._ball_detect_timeout
 
         elif new_state == State.ASCEND_SRC:
             above_src, _ = self._compute_above(self._src_ik)
@@ -753,15 +751,28 @@ class PickAndPlacePlanner(Node):
             self._enter_state(State.MOVE_HOME)
             return
 
-        # --- dwell states (two-phase: settle → suction) ---
+        # --- dwell states (SUCTION_ON: three-phase; SUCTION_OFF: two-phase) ---
         if self._state in (State.SUCTION_ON, State.SUCTION_OFF):
             now = time.monotonic()
-            if not self._dwell_settled and now >= self._settle_end:
-                # Phase 2: arm has settled — now trigger suction hardware
-                self._dwell_settled = True
-                self._suction(self._state == State.SUCTION_ON)
-                self.get_logger().info("  Arm settled — suction command sent")
-                if self._state == State.SUCTION_ON:
+
+            if self._state == State.SUCTION_ON:
+                # Phase 1: wait for arm to settle (servo still UP)
+                if not self._dwell_settled and not self._servo_sent and now >= self._settle_end:
+                    # Arm has settled — now lower the servo
+                    self._servo_sent = True
+                    cmd = String()
+                    cmd.data = "servo_down"
+                    self._suc_manual.publish(cmd)
+                    self.get_logger().info("  Arm settled — servo down command sent")
+                    self._servo_end = now + self.SERVO_SETTLE_TIME
+                    return
+
+                # Phase 2: wait for servo to reach down position
+                if self._servo_sent and not self._dwell_settled and now >= self._servo_end:
+                    # Servo has settled — turn on suction valve
+                    self._dwell_settled = True
+                    self._suction(True)
+                    self.get_logger().info("  Servo settled — suction command sent")
                     self._pick_detection_armed = True
                     self._pick_confirmed = False
                     self._pick_seen_false = not self._ball_detected
@@ -776,9 +787,9 @@ class PickAndPlacePlanner(Node):
                         "  Waiting for pressure confirmation (ball_detected or strong raw sample) "
                         "(no timeout — use /cancel_plan to abort)"
                     )
+                    return
 
-            # SUCTION_ON: wait INDEFINITELY for pressure sensor confirmation
-            if self._state == State.SUCTION_ON:
+                # Phase 3: wait for pressure sensor pick confirmation
                 if self._dwell_settled and self._pick_confirmed:
                     self._pick_detection_armed = False
                     self.get_logger().info("  Pick confirmed by pressure sensor — raising servo")
@@ -790,6 +801,13 @@ class PickAndPlacePlanner(Node):
                     self.get_logger().info("  Still waiting for ball pick-up …")
                     self._wait_log_time = now + 10.0  # repeat every 10 s
                 return
+
+            # SUCTION_OFF handling (unchanged two-phase)
+            if not self._dwell_settled and now >= self._settle_end:
+                # Phase 2: arm has settled — now trigger suction hardware
+                self._dwell_settled = True
+                self._suction(False)
+                self.get_logger().info("  Arm settled — suction command sent")
 
             # SUCTION_OFF: still uses dwell timer (place doesn't need sensor)
             if now >= self._dwell_end:

@@ -23,6 +23,7 @@ def generate_launch_description():
     pkg = get_package_share_directory("Main_Assembly_1")
     urdf_file = os.path.join(pkg, "urdf", "Main_Assembly_1.urdf")
     rviz_config = os.path.join(pkg, "rviz", "config.rviz")
+    params_file = os.path.join(pkg, "config", "robot_params.yaml")
 
     with open(urdf_file, "r") as f:
         robot_desc = f.read()
@@ -62,6 +63,7 @@ def generate_launch_description():
         Node(
             package="Main_Assembly_1",
             executable="five_bar_ik_node.py",
+            parameters=[params_file],
             output="screen",
         ),
 
@@ -76,6 +78,7 @@ def generate_launch_description():
         Node(
             package="Main_Assembly_1",
             executable="pick_and_place_planner.py",
+            parameters=[params_file],
             output="screen",
             condition=UnlessCondition(use_v2),
         ),
@@ -84,41 +87,25 @@ def generate_launch_description():
         Node(
             package="Main_Assembly_1",
             executable="pick_and_place_planner_v2.py",
+            parameters=[params_file],
             output="screen",
             condition=IfCondition(use_v2),
         ),
-
-        # Servo node — disabled; suction_hardware_node controls PCA9685 directly
-        # Node(
-        #     package="Main_Assembly_1",
-        #     executable="servo_node.py",
-        #     output="screen",
-        # ),
 
         # Suction hardware — solenoid valve + servo (direct PCA9685 control)
         Node(
             package="Main_Assembly_1",
             executable="suction_hardware_node.py",
+            parameters=[params_file],
             output="screen",
         ),
 
-        # Sci-Fi Pick & Place GUI (disabled)
-        # Node(
-        #     package="Main_Assembly_1",
-        #     executable="pick_place_gui.py",
-        #     output="screen",
-        # ),
-
         # Arduino serial bridge — sends joint angles to Arduino + CNC Shield
-        # MKS SERVO42C runs in STEP/DIR closed-loop mode (CR_CLOSE):
-        #   ROS2 → serial → Arduino → STEP/DIR → MKS SERVO42C (encoder loop internal)
-        # Flash arduino/Stepper_angle_v2/Stepper_angle_v2.ino onto Arduino first.
         Node(
             package="Main_Assembly_1",
             executable="arduino_bridge.py",
-            parameters=[{
+            parameters=[params_file, {
                 "serial_port": serial_port,
-                "baud_rate":   115200,
             }],
             output="screen",
         ),
@@ -127,15 +114,7 @@ def generate_launch_description():
         Node(
             package="Main_Assembly_1",
             executable="pressure_sensor_node.py",
-            parameters=[{
-                "gpio_sck":           11,
-                "gpio_out":           27,
-                "picked_drop_max":   -5000000,
-                "released_drop_min": -4000000,
-                "confirm_samples":    2,
-                "sample_window":      5,
-                "read_hz":            10.0,
-            }],
+            parameters=[params_file],
             output="screen",
         ),
 

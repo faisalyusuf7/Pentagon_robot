@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Pentagon Robot | Ball Pickup UI</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="backdrop">
+      <div class="backdrop__glow backdrop__glow--amber"></div>
+      <div class="backdrop__glow backdrop__glow--cyan"></div>
+      <div class="backdrop__grid"></div>
+    </div>
+
+    <main class="shell">
+      <section class="hero panel panel--wide reveal">
+        <div>
+          <p class="eyebrow">Pentagon Robot // Cinematic Control Surface</p>
+          <h1>Ball Pickup Sequence Interface</h1>
+          <p class="lede">
+            A realistic mission view for source selection, suction confirmation,
+            pressure response, and transfer choreography across the trays.
+          </p>
+        </div>
+        <div class="hero__stats">
+          <div class="metric">
+            <span class="metric__label">Cycle State</span>
+            <strong id="cycleState">Standby</strong>
+          </div>
+          <div class="metric">
+            <span class="metric__label">Web Link</span>
+            <strong id="connectionState">Offline</strong>
+          </div>
+          <div class="metric">
+            <span class="metric__label">Pressure Lock</span>
+            <strong id="pressureLock">Monitoring</strong>
+          </div>
+          <div class="metric">
+            <span class="metric__label">Transfer Route</span>
+            <strong id="routeLabel">F4 → L0</strong>
+          </div>
+        </div>
+      </section>
+
+      <section class="layout">
+        <div class="layout__main">
+          <section class="panel reveal">
+            <div class="panel__head">
+              <div>
+                <p class="eyebrow">Digital Twin</p>
+                <h2>Pickup Stage</h2>
+              </div>
+              <div class="stage-actions">
+                <button id="runCycleButton" class="button button--primary">Send Live Command</button>
+                <button id="cancelCycleButton" class="button button--ghost">Abort</button>
+              </div>
+            </div>
+
+            <div class="stage" id="stage">
+              <div class="stage__scan"></div>
+              <svg class="robot-svg" viewBox="0 0 1000 660" role="img" aria-label="Robot pickup simulation">
+                <defs>
+                  <linearGradient id="armGlow" x1="0%" y1="0%" x2="100%" y2="0%">
+                    <stop offset="0%" stop-color="#ff9a2f" />
+                    <stop offset="100%" stop-color="#ffe4a3" />
+                  </linearGradient>
+                  <linearGradient id="stageGlass" x1="0%" y1="0%" x2="0%" y2="100%">
+                    <stop offset="0%" stop-color="rgba(255,255,255,0.18)" />
+                    <stop offset="100%" stop-color="rgba(255,255,255,0.02)" />
+                  </linearGradient>
+                  <filter id="softGlow">
+                    <feGaussianBlur stdDeviation="6" result="blur" />
+                    <feMerge>
+                      <feMergeNode in="blur" />
+                      <feMergeNode in="SourceGraphic" />
+                    </feMerge>
+                  </filter>
+                </defs>
+
+                <rect x="30" y="40" width="940" height="560" rx="28" class="stage-shell" />
+                <rect x="60" y="80" width="880" height="480" rx="24" class="stage-glass" />
+                <rect x="110" y="132" width="288" height="328" rx="26" class="tray tray--front" />
+                <rect x="606" y="132" width="288" height="328" rx="26" class="tray tray--left" />
+
+                <g id="frontTrayCells"></g>
+                <g id="leftTrayCells"></g>
+
+                <g class="gantry">
+                  <rect x="425" y="78" width="150" height="26" rx="13" class="gantry__beam" />
+                  <circle cx="500" cy="91" r="12" class="gantry__core" />
+                </g>
+
+                <g id="robotGroup" transform="translate(500 112)">
+                  <line id="armLeft" x1="0" y1="0" x2="-100" y2="110" class="robot-arm" />
+                  <line id="armRight" x1="0" y1="0" x2="100" y2="110" class="robot-arm" />
+                  <line id="linkLeft" x1="-100" y1="110" x2="0" y2="224" class="robot-link" />
+                  <line id="linkRight" x1="100" y1="110" x2="0" y2="224" class="robot-link" />
+                  <circle cx="0" cy="0" r="18" class="robot-joint" />
+                  <circle cx="-100" cy="110" r="16" class="robot-joint robot-joint--secondary" />
+                  <circle cx="100" cy="110" r="16" class="robot-joint robot-joint--secondary" />
+                  <g id="effector" transform="translate(0 224)">
+                    <circle r="22" class="effector__halo" />
+                    <rect x="-20" y="-14" width="40" height="28" rx="14" class="effector__body" />
+                    <rect x="-7" y="12" width="14" height="24" rx="7" class="effector__nozzle" />
+                    <circle id="ballVisual" cx="0" cy="44" r="12" class="ball ball--held hidden" />
+                  </g>
+                </g>
+              </svg>
+            </div>
+          </section>
+
+          <section class="panel reveal">
+            <div class="panel__head">
+              <div>
+                <p class="eyebrow">Command Builder</p>
+                <h2>Pickup Routing</h2>
+              </div>
+              <div class="command-readout" id="commandReadout">F4 → L0</div>
+            </div>
+
+            <div class="tray-controls">
+              <div>
+                <h3>Source Tray</h3>
+                <div class="hole-grid" id="sourceGrid"></div>
+              </div>
+              <div>
+                <h3>Destination Tray</h3>
+                <div class="hole-grid hole-grid--left" id="destinationGrid"></div>
+              </div>
+            </div>
+          </section>
+        </div>
+
+        <aside class="layout__side">
+          <section class="panel reveal">
+            <div class="panel__head">
+              <div>
+                <p class="eyebrow">Telemetry</p>
+                <h2>Pickup Health</h2>
+              </div>
+            </div>
+
+            <div class="telemetry-list">
+              <div class="telemetry-item">
+                <span>Arm Position</span>
+                <strong id="armPositionLabel">Home Arc</strong>
+              </div>
+              <div class="telemetry-item">
+                <span>Servo State</span>
+                <strong id="servoStateLabel">Raised</strong>
+              </div>
+              <div class="telemetry-item">
+                <span>Valve State</span>
+                <strong id="valveStateLabel">Vent Open</strong>
+              </div>
+              <div class="telemetry-item">
+                <span>Ball State</span>
+                <strong id="ballStateLabel">In Source Tray</strong>
+              </div>
+              <div class="telemetry-item">
+                <span>Sensor Raw</span>
+                <strong id="pressureRawLabel">--</strong>
+              </div>
+            </div>
+
+            <div class="gauge-card">
+              <div class="gauge-card__head">
+                <span>Pressure Signal</span>
+                <strong id="pressureValueLabel">Waiting for ROS</strong>
+              </div>
+              <div class="pressure-bar">
+                <div id="pressureFill" class="pressure-bar__fill"></div>
+              </div>
+              <div class="pressure-scale">
+                <span>Idle</span>
+                <span>Seal</span>
+                <span>Pickup</span>
+              </div>
+            </div>
+          </section>
+
+          <section class="panel reveal">
+            <div class="panel__head">
+              <div>
+                <p class="eyebrow">Sequence</p>
+                <h2>Cycle Timeline</h2>
+              </div>
+            </div>
+
+            <ol class="timeline" id="timelineList">
+              <li class="timeline__item timeline__item--active">Move above source</li>
+              <li class="timeline__item">Servo down</li>
+              <li class="timeline__item">Valve close and confirm pressure</li>
+              <li class="timeline__item">Lift and transfer</li>
+              <li class="timeline__item">Release at destination</li>
+            </ol>
+          </section>
+
+          <section class="panel reveal">
+            <div class="panel__head">
+              <div>
+                <p class="eyebrow">Event Feed</p>
+                <h2>Mission Log</h2>
+              </div>
+            </div>
+            <div class="log" id="logFeed"></div>
+          </section>
+        </aside>
+      </section>
+    </main>
+
+    <template id="logLineTemplate">
+      <div class="log__line">
+        <span class="log__time"></span>
+        <span class="log__text"></span>
+      </div>
+    </template>
+
+    <script src="./app.js"></script>
+  </body>
+</html>
