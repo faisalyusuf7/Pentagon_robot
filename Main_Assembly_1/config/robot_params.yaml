@@ -47,8 +47,8 @@ pick_place_planner:
     # Ball detection
     use_ball_detect:         true
     ball_detect_timeout:    30.0    # safety timeout (seconds)
-    pick_raw_fallback_min:  -8000000
-    pick_raw_fallback_grace: 3.0
+    pick_raw_fallback_min:  99999999   # disabled — above 24-bit max (16 777 215); rely on /ball_detected only
+    pick_raw_fallback_grace: 4.0       # seconds after suction-on to ignore raw spikes
 
 # ── Arduino Bridge ─────────────────────────────────────────
 arduino_bridge:
@@ -66,15 +66,15 @@ suction_hardware_node:
     servo_up_angle:  270        # degrees — nozzle up
     servo_settle:      1.0      # seconds to wait after servo move
     grip_delay:        0.5      # seconds after valve open before confirming
-    release_delay:     0.5      # seconds after valve close
+    release_delay:     2.0      # seconds after valve open before servo retracts
 
 # ── Pressure Sensor ───────────────────────────────────────
 pressure_sensor_node:
   ros__parameters:
     gpio_sck:            11
     gpio_out:            27
-    picked_drop_max:    -5000000
-    released_drop_min:  -4000000
-    confirm_samples:     2
+    pick_threshold_pct:  0.93       # PICKED when drop >= 93% of zero (adapts to sensor baseline)
+    confirm_samples:     3
     sample_window:       5
+    outlier_drop_abs:    10000000   # reject readings with |drop| > this (GPIO glitch filter)
     read_hz:            10.0

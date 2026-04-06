@@ -31,7 +31,7 @@ LEFT_HOLES = [f"L{i}" for i in range(9)]
 ALL_HOLES = FRONT_HOLES + LEFT_HOLES
 
 STEP_COARSE = 0.005   # 5 mm per key press
-STEP_FINE   = 0.0005  # 0.5 mm per key press (Shift held)
+STEP_FINE   = 0.00025  # 0.5 mm per key press (Shift held)
 
 
 class CalibrateNode(Node):

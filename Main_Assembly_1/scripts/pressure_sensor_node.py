@@ -53,24 +53,24 @@ class PressureSensorNode(Node):
         # ---------- parameters ----------
         self.declare_parameter("gpio_sck", 11)
         self.declare_parameter("gpio_out", 27)
-        self.declare_parameter("picked_drop_max", -5_000_000)
-        self.declare_parameter("released_drop_min", -4_000_000)
-        self.declare_parameter("confirm_samples", 2)
+        self.declare_parameter("pick_threshold_pct", 0.93)
+        self.declare_parameter("confirm_samples", 3)
         self.declare_parameter("sample_window", 5)
         self.declare_parameter("read_hz", 10.0)
         self.declare_parameter("zero_samples", 40)
         self.declare_parameter("log_every_sample", True)
+        self.declare_parameter("outlier_drop_abs", 10_000_000)
 
         self._pin_sck = int(self.get_parameter("gpio_sck").value)
         self._pin_out = int(self.get_parameter("gpio_out").value)
-        self._picked_drop_max = int(self.get_parameter("picked_drop_max").value)
-        self._released_drop_min = int(self.get_parameter("released_drop_min").value)
+        self._pick_threshold_pct = float(self.get_parameter("pick_threshold_pct").value)
         self._confirm = int(self.get_parameter("confirm_samples").value)
         self._sample_window = max(
             self._confirm,
             int(self.get_parameter("sample_window").value),
         )
         self._log_every_sample = bool(self.get_parameter("log_every_sample").value)
+        self._outlier_drop_abs = int(self.get_parameter("outlier_drop_abs").value)
         hz = float(self.get_parameter("read_hz").value)
         zero_n = int(self.get_parameter("zero_samples").value)
 
@@ -99,12 +99,15 @@ class PressureSensorNode(Node):
         self._zero = self._average_raw_u24(zero_n)
         self.get_logger().info(f"Zero = {self._zero}")
 
+        # Compute pick threshold as percentage of zero
+        self._pick_threshold = int(self._zero * self._pick_threshold_pct)
+
         # ---------- timer ----------
         self._timer = self.create_timer(1.0 / hz, self._tick)
         self.get_logger().info(
             f"Pressure sensor node running at {hz:.0f} Hz  "
-            f"(zero={self._zero}, PICKED if drop <= {self._picked_drop_max}, "
-            f"NOT_PICKED if drop >= {self._released_drop_min}, "
+            f"(zero={self._zero}, PICKED if drop >= {self._pick_threshold} "
+            f"({self._pick_threshold_pct*100:.0f}% of zero), "
             f"window={self._sample_window}, confirm={self._confirm})"
         )
 
@@ -219,11 +222,11 @@ class PressureSensorNode(Node):
         return raw_u24 == 0 or raw_u24 == 0xFFFFFF
 
     def _classify(self, drop):
-        if drop <= self._picked_drop_max:
+        if abs(drop) > self._outlier_drop_abs:
+            return None          # GPIO glitch — don't influence voting
+        if drop >= self._pick_threshold:
             return "PICKED"
-        if drop >= self._released_drop_min:
-            return "NOT_PICKED"
-        return None
+        return "NOT_PICKED"
 
     # ---------------------------------------------------------- #
     def destroy_node(self):

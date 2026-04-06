@@ -210,7 +210,8 @@ class SuctionHardwareNode(Node):
         ]
 
     def _build_place_steps(self):
-        """Return step list for a PLACE sequence."""
+        """Return step list for a PLACE sequence.
+        Valve stays OPEN after place — next PICK will close it."""
         return [
             (lambda: (self._pub_servo_down(),
                       self._publish_status("PLACE: servo down")),
@@ -223,10 +224,6 @@ class SuctionHardwareNode(Node):
             (lambda: (self._pub_servo_up(),
                       self._publish_status("PLACE: servo up (retracting)")),
              self.SERVO_SETTLE),
-
-            (lambda: (self._valve_close(),
-                      self._publish_status("PLACE: valve close")),
-             0.1),
 
             (lambda: self._publish_status("PLACE complete — ball released"),
              0.0),

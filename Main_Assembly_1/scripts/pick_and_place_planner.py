@@ -27,28 +27,33 @@ from nav_msgs.msg import Path
 # ================================================================== #
 #  Hole positions  (world frame)
 # ================================================================== #
+# Front tray 3×3 grid — calibrated from calibrate_holes.py
+#        col0 (IK x=-0.035)  col1 (IK x=0.010)   col2 (IK x=0.055)
+# row0  F0                    F3                    F6
+# row1  F1                    F4                    F7
+# row2  F2                    F5                    F8
 FRONT_TRAY_HOLES = {
-    "F0": (0.724254, -1.440010, 0.020256),
-    "F1": (0.724254, -1.395010, 0.020256),
-    "F2": (0.724254, -1.350010, 0.020256),
-    "F3": (0.769254, -1.440010, 0.020256),
-    "F4": (0.769254, -1.395010, 0.020256),
-    "F5": (0.769254, -1.350010, 0.020256),
-    "F6": (0.814254, -1.440010, 0.020256),
-    "F7": (0.814254, -1.395010, 0.020256),
-    "F8": (0.814254, -1.350010, 0.020256),
+    "F0": (0.749004, -1.429760, 0.020256),
+    "F1": (0.749004, -1.389760, 0.020256),
+    "F2": (0.749004, -1.344760, 0.020256),
+    "F3": (0.794004, -1.429990, 0.020256),
+    "F4": (0.794004, -1.389760, 0.020256),
+    "F5": (0.794004, -1.344760, 0.020256),
+    "F6": (0.839004, -1.434760, 0.020256),
+    "F7": (0.839004, -1.389760, 0.020256),
+    "F8": (0.839004, -1.344760, 0.020256),
 }
 
 LEFT_TRAY_HOLES = {
-    "L0": (0.594254, -1.645010, 0.000256),
-    "L1": (0.549254, -1.645010, 0.000256),
-    "L2": (0.504254, -1.645010, 0.000256),
-    "L3": (0.594254, -1.690010, 0.000256),
-    "L4": (0.549254, -1.690010, 0.000256),
-    "L5": (0.504254, -1.690010, 0.000256),
-    "L6": (0.594254, -1.735010, 0.000256),
-    "L7": (0.549254, -1.735010, 0.000256),
-    "L8": (0.504254, -1.735010, 0.000256),
+    "L0": (0.599254, -1.650010, 0.000256),
+    "L1": (0.554254, -1.650010, 0.000256),
+    "L2": (0.509254, -1.650010, 0.000256),
+    "L3": (0.599254, -1.695010, 0.000256),
+    "L4": (0.554254, -1.695010, 0.000256),
+    "L5": (0.509254, -1.695010, 0.000256),
+    "L6": (0.599254, -1.740010, 0.000256),
+    "L7": (0.554254, -1.740010, 0.000256),
+    "L8": (0.509254, -1.740010, 0.000256),
 }
 
 ALL_HOLES = {**FRONT_TRAY_HOLES, **LEFT_TRAY_HOLES}
@@ -232,9 +237,12 @@ class PickAndPlacePlanner(Node):
                                    # HW place: servo_down 2.5 + release 2.0 + 0.1 + servo_up 2.5 = 7.1
     USE_BALL_DETECT    = True       # gate SUCTION_ON→ASCEND on pressure sensor
     BALL_DETECT_TIMEOUT = 30.0     # seconds — safety-only; proceeds on sensor confirmation
-    PICK_RAW_FALLBACK_MIN = 5000000 # strong raw_u24 sample that confirms a pick during suction
+    PICK_RAW_FALLBACK_MIN = 10000000 # raw_u24 threshold for confirming pick (raised to avoid noisy false positives)
     PICK_RAW_FALLBACK_GRACE = 0.4  # ignore pressure spikes immediately after suction starts
-    HOME_POS          = (-0.02115, 0.25464)  # Just above F3 (radius 0.156m, angle 97.8°)
+    HOVER_DELAY        = 3.0        # seconds after suction before starting hover pattern
+    HOVER_RADIUS       = 0.005      # 5 mm circular wobble around hole centre
+    HOVER_PERIOD       = 1.5        # seconds per full circle
+    HOME_POS          = (-0.02115, 0.35464)  # Just above F3 (radius 0.156m, angle 97.8°)
     TICK_RATE         = 30.0       # Hz
     TRANSFER_RADIUS   = 0.2      # safe radial dist for lateral moves (m)
     TRANSFER_ARC_SPEED = 0.26     # m/s along the arc
@@ -309,6 +317,11 @@ class PickAndPlacePlanner(Node):
         # dwell two-phase tracking (settle then suction)
         self._dwell_settled = False
         self._settle_end = 0.0
+
+        # hover retry state
+        self._hover_active = False
+        self._hover_start_time = 0.0
+        self._hover_centre_ik = (0.0, 0.0)
 
         # segment (continuous trajectory)
         self._seg_active = False
@@ -509,6 +522,13 @@ class PickAndPlacePlanner(Node):
         src_ik = world_to_ik(wx_s, wy_s)
         dst_ik = world_to_ik(wx_d, wy_d)
 
+        # --- TEST OVERRIDE: hardcode F3 IK target ---
+        _F3_IK = (0.010000, 0.260000)
+        if src == "F3":
+            src_ik = _F3_IK
+        if dst == "F3":
+            dst_ik = _F3_IK
+
         # must be reachable
         if not self._reachable(src_ik[0], src_ik[1]):
             self._publish_status(f"ERROR — source '{src}' unreachable")
@@ -595,6 +615,10 @@ class PickAndPlacePlanner(Node):
             self._start_segment(self._current_ik, above_src, speed=self._move_speed)
 
         elif new_state == State.DESCEND_SRC:
+            self.get_logger().info(
+                f"  DESCEND target: IK ({self._src_ik[0]:+.4f},{self._src_ik[1]:+.4f})  "
+                f"from ({self._current_ik[0]:+.4f},{self._current_ik[1]:+.4f})"
+            )
             self._start_segment(self._current_ik, self._src_ik, speed=self._desc_speed)
 
         elif new_state == State.SUCTION_ON:
@@ -602,6 +626,7 @@ class PickAndPlacePlanner(Node):
             self._pick_detection_armed = False
             self._pick_seen_false = False
             self._pick_arm_time = 0.0
+            self._hover_active = False
 
             # Phase 1: wait for arm to physically reach the target position
             # Servo stays UP until the arm has settled
@@ -640,6 +665,10 @@ class PickAndPlacePlanner(Node):
             self._start_segment(self._current_ik, above_dst, speed=self._move_speed)
 
         elif new_state == State.DESCEND_DST:
+            self.get_logger().info(
+                f"  DESCEND target: IK ({self._dst_ik[0]:+.4f},{self._dst_ik[1]:+.4f})  "
+                f"from ({self._current_ik[0]:+.4f},{self._current_ik[1]:+.4f})"
+            )
             self._start_segment(self._current_ik, self._dst_ik, speed=self._desc_speed)
 
         elif new_state == State.SUCTION_OFF:
@@ -792,14 +821,56 @@ class PickAndPlacePlanner(Node):
                 # Phase 3: wait for pressure sensor pick confirmation
                 if self._dwell_settled and self._pick_confirmed:
                     self._pick_detection_armed = False
+                    # If hovering, snap back to hole centre before ascending
+                    if self._hover_active:
+                        self._hover_active = False
+                        self._current_ik = self._hover_centre_ik
+                        self._publish_ik(self._current_ik)
                     self.get_logger().info("  Pick confirmed by pressure sensor — raising servo")
                     cmd = String()
                     cmd.data = "servo_up"
                     self._suc_manual.publish(cmd)
                     self._enter_state(self._next_state())
-                elif self._dwell_settled and now >= getattr(self, '_wait_log_time', now + 1):
-                    self.get_logger().info("  Still waiting for ball pick-up …")
-                    self._wait_log_time = now + 10.0  # repeat every 10 s
+                elif self._dwell_settled and not self._pick_confirmed:
+                    elapsed_since_suction = now - self._pick_arm_time
+
+                    # If the sensor already reported PICKED when suction
+                    # started (e.g. servo pressure alone triggered it) and
+                    # it is STILL picked after a 1-second grace, accept it.
+                    if (not self._pick_seen_false
+                            and self._ball_detected
+                            and elapsed_since_suction >= 1.0):
+                        self._pick_confirmed = True
+                        self.get_logger().info(
+                            "  Sensor continuously PICKED since suction start — accepting"
+                        )
+                        return
+
+                    # After HOVER_DELAY seconds, start a circular wobble to
+                    # catch the ball if the cup is slightly offset
+                    if elapsed_since_suction >= self.HOVER_DELAY and not self._hover_active:
+                        self._hover_active = True
+                        self._hover_start_time = now
+                        self._hover_centre_ik = self._src_ik
+                        self.get_logger().info(
+                            f"  No pick after {self.HOVER_DELAY:.1f}s — "
+                            f"starting hover pattern (r={self.HOVER_RADIUS*1000:.1f}mm, "
+                            f"T={self.HOVER_PERIOD:.1f}s)"
+                        )
+
+                    if self._hover_active:
+                        t = now - self._hover_start_time
+                        angle = 2.0 * math.pi * t / self.HOVER_PERIOD
+                        cx, cy = self._hover_centre_ik
+                        hx = cx + self.HOVER_RADIUS * math.cos(angle)
+                        hy = cy + self.HOVER_RADIUS * math.sin(angle)
+                        self._current_ik = (hx, hy)
+                        self._publish_ik(self._current_ik)
+
+                    if now >= getattr(self, '_wait_log_time', now + 1):
+                        extra = " (hovering)" if self._hover_active else ""
+                        self.get_logger().info(f"  Still waiting for ball pick-up …{extra}")
+                        self._wait_log_time = now + 10.0
                 return
 
             # SUCTION_OFF handling (unchanged two-phase)
