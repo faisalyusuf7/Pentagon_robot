@@ -18,7 +18,9 @@ Joints published:
 """
 
 import math
+import os
 import numpy as np
+import yaml
 
 import rclpy
 from rclpy.node import Node
@@ -128,6 +130,29 @@ class FiveBarIKNode(Node):
         "L8": (0.509254, -1.740010, 0.000256),
     }
 
+    @staticmethod
+    def _load_holes(config_path, front_offset, left_offset):
+        front = dict(FiveBarIKNode.FRONT_TRAY_HOLES)
+        left = dict(FiveBarIKNode.LEFT_TRAY_HOLES)
+        try:
+            with open(config_path, "r", encoding="utf-8") as f:
+                data = yaml.safe_load(f) or {}
+            for name, vals in data.get("front_tray", {}).get("holes", {}).items():
+                front[name.upper()] = (
+                    float(vals["x"]) + front_offset[0],
+                    float(vals["y"]) + front_offset[1],
+                    float(vals["z"]),
+                )
+            for name, vals in data.get("tray_left", {}).get("holes", {}).items():
+                left[name.upper()] = (
+                    float(vals["x"]) + left_offset[0],
+                    float(vals["y"]) + left_offset[1],
+                    float(vals["z"]),
+                )
+        except Exception:
+            pass
+        return front, left
+
     def __init__(self):
         super().__init__("fivebar_ik_node")
 
@@ -140,6 +165,14 @@ class FiveBarIKNode(Node):
         self.declare_parameter("suction_offset_y", 0.0)
         self.declare_parameter("suction_offset_z", 0.0)
         self.declare_parameter("use_suction_correction", True)
+        self.declare_parameter(
+            "hole_config_path",
+            os.path.join(os.path.dirname(__file__), "..", "config", "ball_positions.yaml"),
+        )
+        self.declare_parameter("front_offset_x", 0.0)
+        self.declare_parameter("front_offset_y", 0.0)
+        self.declare_parameter("left_offset_x", 0.0)
+        self.declare_parameter("left_offset_y", 0.0)
 
         self.L1 = float(self.get_parameter("L1").value)
         self.L2 = float(self.get_parameter("L2").value)
@@ -160,6 +193,19 @@ class FiveBarIKNode(Node):
             f"effective tip: {self._suction_xyz.tolist()}  "
             f"suction_correction={'ON' if self._use_suction_correction else 'OFF'}"
         )
+
+        hole_cfg = str(self.get_parameter("hole_config_path").value)
+        front_offset = (
+            float(self.get_parameter("front_offset_x").value),
+            float(self.get_parameter("front_offset_y").value),
+        )
+        left_offset = (
+            float(self.get_parameter("left_offset_x").value),
+            float(self.get_parameter("left_offset_y").value),
+        )
+        front, left = self._load_holes(hole_cfg, front_offset, left_offset)
+        self.FRONT_TRAY_HOLES = front
+        self.LEFT_TRAY_HOLES = left
 
         # Home position: both cranks straight up = IK θ = π/2
         # URDF angle at home = yaw (not zero!)

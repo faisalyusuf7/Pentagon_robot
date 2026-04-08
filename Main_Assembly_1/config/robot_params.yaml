@@ -23,6 +23,11 @@ fivebar_ik_node:
     # Enable iterative FK correction so the *nozzle tip* (not the
     # linkage meeting point) lands on the target hole position.
     use_suction_correction: false
+    hole_config_path: "Main_Assembly_1/config/ball_positions.yaml"
+    front_offset_x: 0.0
+    front_offset_y: 0.0
+    left_offset_x: 0.0
+    left_offset_y: 0.0
 
 # ── Pick-and-Place Planner ─────────────────────────────────
 pick_place_planner:
@@ -49,6 +54,15 @@ pick_place_planner:
     ball_detect_timeout:    30.0    # safety timeout (seconds)
     pick_raw_fallback_min:  99999999   # disabled — above 24-bit max (16 777 215); rely on /ball_detected only
     pick_raw_fallback_grace: 4.0       # seconds after suction-on to ignore raw spikes
+    max_ik_step: 0.004              # metres per planner tick (~4 mm @ 20 Hz) to suppress jerk on transitions
+    hole_config_path: "Main_Assembly_1/config/ball_positions.yaml"
+    front_offset_x: 0.0             # calibration trim (metres) for front tray coordinates
+    front_offset_y: 0.0
+    left_offset_x: 0.0              # calibration trim (metres) for left tray coordinates
+    left_offset_y: 0.0
+    ik_origin_x: 0.783502           # planner world->IK origin (metres)
+    ik_origin_y: -1.689760
+    ik_origin_z: 0.060260
 
 # ── Arduino Bridge ─────────────────────────────────────────
 arduino_bridge:
