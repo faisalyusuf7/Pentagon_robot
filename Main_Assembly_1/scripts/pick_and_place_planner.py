@@ -12,10 +12,12 @@ PATCHED:
 """
 
 import math
+import os
 import time
 from enum import Enum, auto
 
 import numpy as np
+import yaml
 
 import rclpy
 from rclpy.node import Node
@@ -179,18 +181,18 @@ def solve_ik_for_suction(target_wx, target_wy, max_iter=5):
     return (px, py)
 
 
-def world_to_ik(wx, wy):
+def world_to_ik(wx, wy, ik_origin=IK_ORIGIN):
     """Convert world (x, y) → IK plane (x, y)."""
     # Suction FK correction disabled — stale old-URDF constants cause drift
     # result = solve_ik_for_suction(wx, wy)
     # if result is not None:
     #     return result
-    return wx - IK_ORIGIN[0], wy - IK_ORIGIN[1]
+    return wx - ik_origin[0], wy - ik_origin[1]
 
 
-def ik_to_world(ix, iy):
+def ik_to_world(ix, iy, ik_origin=IK_ORIGIN):
     """Convert IK plane (x, y) → world (x, y)."""
-    return ix + IK_ORIGIN[0], iy + IK_ORIGIN[1]
+    return ix + ik_origin[0], iy + ik_origin[1]
 
 
 # ================================================================== #
@@ -276,6 +278,18 @@ class PickAndPlacePlanner(Node):
         self.declare_parameter("ball_detect_timeout", self.BALL_DETECT_TIMEOUT)
         self.declare_parameter("pick_raw_fallback_min", self.PICK_RAW_FALLBACK_MIN)
         self.declare_parameter("pick_raw_fallback_grace", self.PICK_RAW_FALLBACK_GRACE)
+        self.declare_parameter(
+            "hole_config_path",
+            os.path.join(os.path.dirname(__file__), "..", "config", "ball_positions.yaml"),
+        )
+        self.declare_parameter("front_offset_x", 0.0)
+        self.declare_parameter("front_offset_y", 0.0)
+        self.declare_parameter("left_offset_x", 0.0)
+        self.declare_parameter("left_offset_y", 0.0)
+        self.declare_parameter("ik_origin_x", float(IK_ORIGIN[0]))
+        self.declare_parameter("ik_origin_y", float(IK_ORIGIN[1]))
+        self.declare_parameter("ik_origin_z", float(IK_ORIGIN[2]))
+        self.declare_parameter("max_ik_step", 0.004)
 
         self._approach_base = float(self.get_parameter("approach_offset").value)
         self._approach      = self._approach_base
@@ -288,6 +302,23 @@ class PickAndPlacePlanner(Node):
         self._ball_detect_timeout = float(self.get_parameter("ball_detect_timeout").value)
         self._pick_raw_fallback_min = int(self.get_parameter("pick_raw_fallback_min").value)
         self._pick_raw_fallback_grace = float(self.get_parameter("pick_raw_fallback_grace").value)
+        self._max_ik_step = max(0.0005, float(self.get_parameter("max_ik_step").value))
+        self._ik_origin = np.array([
+            float(self.get_parameter("ik_origin_x").value),
+            float(self.get_parameter("ik_origin_y").value),
+            float(self.get_parameter("ik_origin_z").value),
+        ])
+
+        hole_cfg = str(self.get_parameter("hole_config_path").value)
+        front_offset = (
+            float(self.get_parameter("front_offset_x").value),
+            float(self.get_parameter("front_offset_y").value),
+        )
+        left_offset = (
+            float(self.get_parameter("left_offset_x").value),
+            float(self.get_parameter("left_offset_y").value),
+        )
+        self._all_holes = self._load_holes(hole_cfg, front_offset, left_offset)
 
         # ---- state ----
         self._state = State.IDLE
@@ -301,6 +332,7 @@ class PickAndPlacePlanner(Node):
 
         # where EE is now (commanded)
         self._current_ik = self.HOME_POS
+        self._last_sent_ik = self.HOME_POS
 
         # cancel / suction tracking
         self._cancelled = False
@@ -424,6 +456,42 @@ class PickAndPlacePlanner(Node):
             return (0.0, radius)
         return (x / r * radius, y / r * radius)
 
+    def _load_holes(self, config_path, front_offset, left_offset):
+        """
+        Load hole coordinates from config/ball_positions.yaml so planner and
+        calibration tooling share the exact same source of truth.
+        """
+        holes = dict(ALL_HOLES)
+        try:
+            with open(config_path, "r", encoding="utf-8") as f:
+                data = yaml.safe_load(f) or {}
+            front = data.get("front_tray", {}).get("holes", {})
+            left = data.get("tray_left", {}).get("holes", {})
+
+            for name, vals in front.items():
+                holes[name.upper()] = (
+                    float(vals["x"]) + front_offset[0],
+                    float(vals["y"]) + front_offset[1],
+                    float(vals["z"]),
+                )
+            for name, vals in left.items():
+                holes[name.upper()] = (
+                    float(vals["x"]) + left_offset[0],
+                    float(vals["y"]) + left_offset[1],
+                    float(vals["z"]),
+                )
+
+            self.get_logger().info(
+                f"Loaded {len(holes)} holes from {config_path} "
+                f"(front Δx={front_offset[0]:+.4f}, Δy={front_offset[1]:+.4f}; "
+                f"left Δx={left_offset[0]:+.4f}, Δy={left_offset[1]:+.4f})"
+            )
+        except Exception as exc:
+            self.get_logger().warn(
+                f"Failed to load hole config '{config_path}' ({exc}); using embedded defaults."
+            )
+        return holes
+
     # ============================================================== #
     #  Arc transfer (constant-radius sweep, avoids singularity)
     # ============================================================== #
@@ -510,24 +578,17 @@ class PickAndPlacePlanner(Node):
             return
 
         src, dst = parts
-        if src not in ALL_HOLES:
+        if src not in self._all_holes:
             self._publish_status(f"ERROR — unknown source hole '{src}'")
             return
-        if dst not in ALL_HOLES:
+        if dst not in self._all_holes:
             self._publish_status(f"ERROR — unknown destination hole '{dst}'")
             return
 
-        wx_s, wy_s, _ = ALL_HOLES[src]
-        wx_d, wy_d, _ = ALL_HOLES[dst]
-        src_ik = world_to_ik(wx_s, wy_s)
-        dst_ik = world_to_ik(wx_d, wy_d)
-
-        # --- TEST OVERRIDE: hardcode F3 IK target ---
-        _F3_IK = (0.010000, 0.260000)
-        if src == "F3":
-            src_ik = _F3_IK
-        if dst == "F3":
-            dst_ik = _F3_IK
+        wx_s, wy_s, _ = self._all_holes[src]
+        wx_d, wy_d, _ = self._all_holes[dst]
+        src_ik = world_to_ik(wx_s, wy_s, self._ik_origin)
+        dst_ik = world_to_ik(wx_d, wy_d, self._ik_origin)
 
         # must be reachable
         if not self._reachable(src_ik[0], src_ik[1]):
@@ -928,10 +989,21 @@ class PickAndPlacePlanner(Node):
     #  Publishing helpers
     # ============================================================== #
     def _publish_ik(self, ik_xy):
+        dx = ik_xy[0] - self._last_sent_ik[0]
+        dy = ik_xy[1] - self._last_sent_ik[1]
+        dist = math.hypot(dx, dy)
+        if dist > self._max_ik_step:
+            scale = self._max_ik_step / dist
+            ik_xy = (
+                self._last_sent_ik[0] + dx * scale,
+                self._last_sent_ik[1] + dy * scale,
+            )
+
         msg = Point()
         msg.x = float(ik_xy[0])
         msg.y = float(ik_xy[1])
         self._ik_pub.publish(msg)
+        self._last_sent_ik = (msg.x, msg.y)
 
     def _suction(self, on: bool):
         msg = Bool()
@@ -1026,10 +1098,10 @@ class PickAndPlacePlanner(Node):
         for ix, iy in samples:
             ps = PoseStamped()
             ps.header = path.header
-            wx, wy = ik_to_world(ix, iy)
+            wx, wy = ik_to_world(ix, iy, self._ik_origin)
             ps.pose.position.x = float(wx)
             ps.pose.position.y = float(wy)
-            ps.pose.position.z = float(IK_ORIGIN[2])
+            ps.pose.position.z = float(self._ik_origin[2])
             ps.pose.orientation.w = 1.0
             path.poses.append(ps)
 
@@ -1056,10 +1128,10 @@ class PickAndPlacePlanner(Node):
         for ix, iy in waypoints_ik:
             ps = PoseStamped()
             ps.header = path.header
-            wx, wy = ik_to_world(ix, iy)
+            wx, wy = ik_to_world(ix, iy, self._ik_origin)
             ps.pose.position.x = float(wx)
             ps.pose.position.y = float(wy)
-            ps.pose.position.z = float(IK_ORIGIN[2])
+            ps.pose.position.z = float(self._ik_origin[2])
             ps.pose.orientation.w = 1.0
             path.poses.append(ps)
 
